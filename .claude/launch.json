@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "agent-monitor",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["agent-monitor/server.js", "7788"],
+      "port": 7788
+    }
+  ]
+}

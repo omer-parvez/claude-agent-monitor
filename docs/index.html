@@ -1,0 +1,1516 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents, live</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='4.5' cy='8' r='3.5' fill='%232a78d6'/%3E%3Ccircle cx='12' cy='4' r='2.8' fill='%23eb6834'/%3E%3Ccircle cx='12' cy='12' r='2.8' fill='%23eb6834'/%3E%3C/svg%3E">
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface-0: #f4f4f2; --surface-1: #fcfcfb; --surface-2: #ecebe8;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77766f;
+  --grid: #e3e2de; --axis: #b9b8b2;
+  --search: #2a78d6; --check: #eb6834; --report: #8a8985; --orch: #0b0b0b; --alert: #c42b2b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #262624;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+    --grid: #2e2e2c; --axis: #55544f;
+    --search: #3987e5; --check: #d95926; --report: #8f8e87; --orch: #f0efec; --alert: #f0605d;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #262624;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+  --grid: #2e2e2c; --axis: #55544f;
+  --search: #3987e5; --check: #d95926; --report: #8f8e87; --orch: #f0efec; --alert: #f0605d;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface-0); color: var(--text-primary); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; min-height: 100vh; padding: 14px 18px 40px; }
+h1 { font-size: 20px; margin: 0; font-weight: 600; }
+.sub { color: var(--text-secondary); margin: 2px 0 10px; font-size: 13px; }
+.card { background: var(--surface-1); border: 1px solid var(--grid); border-radius: 8px; }
+.bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 8px 12px; margin-bottom: 10px; }
+button, select { font: inherit; font-size: 13px; border: 1px solid var(--axis); background: var(--surface-1); color: var(--text-primary); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); min-width: 84px; font-weight: 600; }
+button.on { border-color: var(--check); color: var(--check); font-weight: 600; }
+.clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; min-width: 150px; }
+#mini { flex: 1 1 260px; min-width: 200px; cursor: pointer; display: block; }   /* leaves room for the buttons on one line at ~1200 px */
+#mini:focus { outline: 2px solid var(--search); outline-offset: 2px; }
+label.chk { font-size: 13px; color: var(--text-secondary); display: inline-flex; gap: 4px; align-items: center; }
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr) 330px; gap: 12px; align-items: start; }
+@media (max-width: 1400px) { .layout { grid-template-columns: 270px minmax(0, 1fr); } .side { grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); } }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+#stage-wrap { position: relative; overflow-x: auto; padding: 6px 4px 4px; min-height: 160px; }
+svg text { fill: var(--text-primary); font-family: inherit; }
+.muted { fill: var(--text-muted); }
+.sec { fill: var(--text-secondary); }
+.edge { fill: none; stroke-linecap: round; }
+.edge.flow { stroke-dasharray: 5 7; animation: flow 0.9s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -24; } }
+.cell { cursor: pointer; }
+.cell:focus { outline: none; }
+.cell:focus rect.box { stroke: var(--text-primary); stroke-width: 2; }
+@media (prefers-reduced-motion: reduce) { .edge.flow { animation: none; } }
+#overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+#overlay > div { pointer-events: auto; background: var(--surface-1); border: 1px solid var(--axis); border-radius: 10px; padding: 16px 22px; text-align: center; box-shadow: 0 6px 24px rgba(0,0,0,.18); max-width: 460px; }
+#overlay h2 { margin: 0 0 6px; font-size: 18px; }
+#overlay p { margin: 0 0 10px; color: var(--text-secondary); font-size: 13px; }
+.side { display: flex; flex-direction: column; gap: 10px; }
+.side .card, .sesscard { padding: 10px 12px; }
+.side h3, .sesscard h3 { margin: 0 0 6px; font-size: 13px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 8px; }
+.stats div b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+.stats div span { font-size: 12px; color: var(--text-secondary); }
+#phase { font-size: 13px; }
+#phase b { font-size: 14px; }
+#phase .note { overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+td { padding: 3px 4px; border-bottom: 1px solid var(--grid); }
+td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.fresh td { animation: fresh 2.2s ease-out; }
+@keyframes fresh { from { background: var(--surface-2); } to { background: transparent; } }
+#feed { max-height: 360px; overflow: auto; font-size: 12.5px; }
+#feed div { padding: 3px 0; border-bottom: 1px solid var(--grid); display: grid; grid-template-columns: 44px 1fr; gap: 6px; }
+#feed div.fresh { animation: fresh 2.2s ease-out; }
+#feed .t { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+#tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--axis); border-radius: 6px; padding: 7px 10px; font-size: 12.5px; max-width: 340px; box-shadow: 0 4px 14px rgba(0,0,0,.18); display: none; z-index: 30; }
+#tip b { font-weight: 600; }
+#drawer { position: fixed; top: 0; right: 0; width: min(420px, 100vw); height: 100vh; overflow: auto; background: var(--surface-1); border-left: 1px solid var(--axis); padding: 16px 18px 40px; transform: translateX(105%); transition: transform .18s; z-index: 25; box-shadow: -6px 0 18px rgba(0,0,0,.15); font-size: 13px; }
+#drawer.open { transform: none; }
+#drawer h3 { margin: 0 30px 4px 0; font-size: 16px; }
+#drawer h4 { margin: 14px 0 4px; font-size: 13px; }
+#drawer .close { position: absolute; top: 10px; right: 12px; font-size: 20px; background: none; border: 0; }
+#drawer ol { padding-left: 18px; margin: 4px 0; color: var(--text-secondary); }
+#drawer p, #drawer li { overflow-wrap: anywhere; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-secondary); padding: 8px 12px 0; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.note { font-size: 12.5px; color: var(--text-secondary); }
+/* sessions column */
+.sesshead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.sesshead h3 { margin: 0; }
+.sesshead button { padding: 2px 8px; }
+/* sessions panel: normal, wide (full titles) or hidden (a slim strip) */
+.layout.wide { grid-template-columns: 440px minmax(0, 1fr) 330px; }
+.layout.hidden { grid-template-columns: 38px minmax(0, 1fr) 330px; }
+@media (max-width: 1400px) { .layout.wide { grid-template-columns: 380px minmax(0, 1fr); } .layout.hidden { grid-template-columns: 38px minmax(0, 1fr); } }
+.layout.wide .sess b, .layout.wide .sess .meta, .layout.wide .sess .title { white-space: normal; overflow-wrap: anywhere; }
+.strip { display: none; width: 100%; border: 0; background: none; padding: 6px 0; writing-mode: vertical-rl; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); letter-spacing: .06em; text-transform: uppercase; }
+.layout.hidden .sesscard { padding: 4px 2px; }
+.layout.hidden .sesscard > :not(.strip) { display: none; }
+.layout.hidden .strip { display: block; }
+#sessions { display: flex; flex-direction: column; gap: 3px; max-height: calc(100vh - 150px); overflow: auto; }
+.sess { text-align: left; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 1px 8px; align-items: baseline; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: none; width: 100%; }
+.sess:hover { background: var(--surface-2); }
+.sess[aria-selected="true"] { border-color: var(--text-primary); background: var(--surface-2); }
+.dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; align-self: center; border: 1.5px solid var(--axis); }
+.dot.working { background: var(--check); border-color: var(--check); }
+.dot.idle { background: var(--search); border-color: var(--search); }
+.sess b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess .ago { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.sess .meta, .sess .title { grid-column: 2 / 4; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess .title { color: var(--text-muted); }
+.ghead { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 4px 3px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.ghead:hover { color: var(--text-primary); }
+.ghead .gname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ghead.current { color: var(--text-primary); box-shadow: inset 3px 0 var(--text-primary); padding-left: 8px; border-radius: 2px; }
+.ghead .n { margin-left: auto; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.group { display: flex; flex-direction: column; gap: 3px; padding-left: 10px; }
+.more { border: 0; background: none; color: var(--search); font-size: 12px; text-align: left; padding: 2px 8px 4px 28px; }
+.more.others { padding: 10px 4px 2px; border-top: 1px solid var(--grid); width: 100%; margin-top: 6px; }
+.divider { margin: 12px 0 0; padding-top: 8px; border-top: 1px solid var(--grid); font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+/* prompt timeline and turn details */
+.prompts { padding: 8px 12px 6px; border-bottom: 1px solid var(--grid); }
+.phead { display: flex; gap: 10px; align-items: baseline; }
+.phead h3 { margin: 0; font-size: 13px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+#prompts-wrap { overflow-x: auto; padding-top: 4px; }
+#prompts { display: block; }
+.pkey { font-size: 11.5px; }
+.pt { cursor: pointer; }
+.pt:focus { outline: none; }
+.pt:focus rect.bar, .pt.sel rect.bar { stroke: var(--text-primary); stroke-width: 2; }
+/* one prompt's story: you (grey), the main agent (blue), the subagents it launched (orange), nested by who launched whom */
+#drawer.wide { width: min(640px, 100vw); }
+/* one prompt in focus: a bar naming it above the map, its story under the map */
+.focusbar { display: flex; gap: 10px; align-items: center; margin: 8px 12px 0; padding: 6px 10px; border: 2px solid var(--search); border-radius: 8px; background: color-mix(in srgb, var(--search) 8%, var(--surface-1)); font-size: 13px; }
+.focusbar[hidden] { display: none; }
+.focusbar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.legend-box summary { cursor: pointer; font-size: 12.5px; color: var(--text-secondary); padding: 6px 12px 0; }
+.legend-box:not([open]) .legend { display: none; }
+#story:empty { display: none; }
+#story { border-top: 1px solid var(--grid); padding: 10px 16px 16px; font-size: 13px; overflow-wrap: anywhere; }   /* long paths wrap instead of widening the page */
+#story h3 { margin: 0 0 4px; font-size: 16px; }
+#story h4 { margin: 14px 0 4px; font-size: 13px; }
+#story .fcard, #story .down, #story .kids { max-width: 900px; }
+#story .tstory + .tstory { margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--axis); }
+#story ol.steps { list-style: none; padding-left: 0; color: var(--text-secondary); columns: 2 420px; column-gap: 24px; }
+.back { margin: 0 0 8px; font-size: 12px; }
+.fcard { border: 2px solid var(--axis); border-radius: 8px; padding: 8px 10px; margin: 6px 0; background: var(--surface-1); overflow-wrap: anywhere; position: relative; }
+.fcard.you { border-color: var(--text-muted); border-style: dashed; }
+.fcard.main { border-color: var(--search); background: color-mix(in srgb, var(--search) 7%, var(--surface-1)); }
+.fcard.sub { border-color: var(--check); background: color-mix(in srgb, var(--check) 7%, var(--surface-1)); }
+.fcard.wait { border-color: var(--alert); }
+.fcard .who { font-weight: 600; font-size: 13.5px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.fcard .who .st { font-weight: 400; color: var(--text-secondary); font-size: 12.5px; }
+.fcard .row { font-size: 12.5px; margin-top: 4px; color: var(--text-secondary); }
+.fcard .row b { color: var(--text-primary); font-weight: 600; }
+.fcard .open { float: right; font-size: 11.5px; padding: 1px 8px; }
+.fcard .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .fcard .live { animation: none; } }
+.qa { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); font-size: 12.5px; }
+.qa div + div { margin-top: 2px; }
+.kids { margin-left: 14px; padding-left: 16px; border-left: 2px solid var(--axis); }
+.kids > .fcard::before { content: ""; position: absolute; left: -18px; top: 18px; width: 16px; border-top: 2px solid var(--axis); }
+.down { margin-left: 22px; height: 12px; border-left: 2px solid var(--axis); }
+#drawer ol.steps { list-style: none; padding-left: 0; }
+ol.steps li { padding-left: 14px; position: relative; margin: 1px 0; }
+ol.steps li::before { content: ""; position: absolute; left: 2px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--axis)); }
+/* needs your input */
+.sess.input { border-color: var(--alert); }
+.dot.input { background: var(--alert); border-color: var(--alert); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--alert) 30%, transparent); } }
+.sess .ago.input, .sess .title.input, .alert { color: var(--alert); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .dot.input { animation: none; } }
+/* what the session dots mean, under the Sessions heading */
+.dotkey { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0 0 6px; font-size: 11.5px; }
+.dotkey span { display: inline-flex; align-items: center; gap: 4px; }
+/* map or timeline, export and re-import, above the map */
+.viewbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px 0; }
+.viewbar .seg { display: inline-flex; }
+.viewbar .seg button { border-radius: 0; }
+.viewbar .seg button:first-child { border-radius: 6px 0 0 6px; }
+.viewbar .seg button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.viewbar .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.viewbar .legend-box { margin-left: auto; }
+.viewbar .legend-box summary { padding: 0; }
+.viewbar .legend-box[open] { flex-basis: 100%; }
+#gantt { display: block; }
+#gantt .glabel { cursor: pointer; }
+#gantt .glabel:hover text { text-decoration: underline; }
+#gantt .gbar { cursor: pointer; }
+#gantt .gbar:focus { outline: none; }
+#gantt .gbar:focus rect.b { stroke: var(--text-primary); stroke-width: 2; }
+/* search your prompts across sessions */
+.search { position: relative; margin-left: auto; }
+.search input { font: inherit; font-size: 13px; width: 260px; max-width: 40vw; padding: 3px 8px; border: 1px solid var(--axis); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+#hits { position: absolute; right: 0; top: calc(100% + 4px); width: min(560px, 90vw); max-height: 420px; overflow: auto; background: var(--surface-1); border: 1px solid var(--axis); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18); z-index: 20; }
+#hits:empty { display: none; }
+#hits button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--grid); border-radius: 0; padding: 6px 10px; background: none; }
+#hits button:hover, #hits button:focus { background: var(--surface-2); outline: none; }
+#hits .hm { font-size: 11.5px; color: var(--text-muted); }
+#hits mark { background: color-mix(in srgb, var(--check) 30%, transparent); color: inherit; }
+#hits p { margin: 8px 10px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Agents, live</h1>
+  <p class="sub">Your Claude Code sessions, live from the hooks. Click a prompt to see only that prompt and the agents it set off.</p>
+
+  <div class="card bar">
+    <button class="primary" id="play" aria-label="Play or pause (space)">❚❚ Pause</button>
+    <button id="live" class="on" title="Follow what happens now (L)">● Live</button>
+    <button id="restart" title="Back to the start of this session (Home)">⏮</button>
+    <select id="speed" aria-label="Replay speed">
+      <option value="1">1 min per second</option><option value="2">2 min per second</option>
+      <option value="4" selected>4 min per second</option><option value="8">8 min per second</option>
+      <option value="15">15 min per second</option><option value="30">30 min per second</option>
+    </select>
+    <span class="clock" id="clock" aria-live="off"></span>
+    <svg id="mini" height="46" role="slider" tabindex="0" aria-label="Position in this session; arrow keys move 10 minutes"></svg>
+    <label class="chk"><input type="checkbox" id="trails" checked> Keep past links</label>
+    <button id="theme" title="Switch light or dark">Light / dark</button>
+    <button id="alerts" title="Desktop notification when a session starts needing your input">🔕 Alerts off</button>
+    <div id="ticker" class="note" style="flex-basis:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Waiting for events…</div>
+  </div>
+
+  <div class="layout">
+    <div class="card sesscard">
+      <button class="strip" id="showpanel" title="Show the sessions list">▸ Sessions</button>
+      <div class="sesshead"><h3>Sessions</h3><span><button id="prev" aria-label="Previous session ([)" title="Previous session ([)">◀</button> <button id="next" aria-label="Next session (])" title="Next session (])">▶</button> <button id="widepanel" title="Wider list with full titles">⇔</button> <button id="hidepanel" aria-label="Hide the sessions list" title="Hide the sessions list">«</button></span></div>
+      <div class="dotkey note" aria-label="What the dots mean"><span><i class="dot working"></i>working</span><span><i class="dot idle"></i>waiting for your prompt</span><span><i class="dot input"></i>needs your answer</span><span><i class="dot"></i>quiet or ended</span></div>
+      <div id="sessions" aria-label="Sessions, grouped by folder"></div>
+    </div>
+    <div class="card">
+      <div class="prompts">
+        <div class="phead"><h3>Prompts</h3><span class="note" id="pnote"></span>
+          <div class="search"><input id="q" type="search" placeholder="Search your prompts in all sessions" aria-label="Search your prompts in all sessions" autocomplete="off"><div id="hits" role="listbox" aria-label="Matching prompts"></div></div></div>
+        <div id="prompts-wrap"><svg id="prompts" height="56" role="list" aria-label="Prompts in this session"></svg></div>
+        <div class="note pkey">Bar height = tool calls · <span style="color:var(--check)">●</span> launched subagents · <span style="color:var(--alert)">▬</span> a tool call failed</div>
+      </div>
+      <div id="focusbar" class="focusbar" hidden><span id="focustext"></span><button id="unfocus" title="Back to every prompt of this session (Esc)">✕ All prompts</button></div>
+      <div class="viewbar">
+        <span class="seg" role="group" aria-label="View"><button id="vmap" aria-pressed="true" title="Agents as cards, work flowing left to right">Map</button><button id="vgantt" aria-pressed="false" title="Agents as bars on a time axis: when each started and finished">Timeline</button></span>
+        <button id="export" title="Save this session, or the prompts you picked, as one HTML file you can open offline or send">⤓ Export</button>
+        <button id="reimport" title="Read Claude Code's transcripts again: workflow agents' names, older sessions and token counts">⟳ Re-import</button>
+      <details class="legend-box"><summary>What the cards and lines mean</summary>
+      <div class="legend">
+        <span><svg width="20" height="12"><rect x="1" y="1" width="18" height="10" rx="3" fill="var(--surface-2)" stroke="var(--search)" stroke-width="2"/></svg>Main agent turns</span>
+        <span><svg width="20" height="12"><rect x="1" y="1" width="18" height="10" rx="3" fill="var(--surface-2)" stroke="var(--check)" stroke-width="2"/></svg>Subagents</span>
+        <span><svg width="20" height="12"><rect x="1" y="1" width="18" height="10" rx="3" fill="none" stroke="var(--report)" stroke-width="2" stroke-dasharray="3 3"/></svg>Quiet: no news for 30 min</span>
+        <span><svg width="20" height="12"><rect x="1" y="1" width="18" height="10" rx="3" fill="var(--surface-1)" stroke="var(--alert)" stroke-width="2"/></svg>⚠ Needs your input</span>
+        <span>▶ running · ✓ finished · ✕ failed call · ↻ resumed</span>
+        <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--text-secondary)" stroke-width="2" stroke-dasharray="5 4"/></svg>work flowing now</span>
+        <span>A flash on a card = one tool call</span>
+        <span>Timeline: bar = when an agent ran · ticks = tool calls (red failed) · red top edge = waiting for you · hatched = idle time shortened</span>
+      </div>
+      </details>
+      </div>
+      <div id="stage-wrap">
+        <svg id="stage" role="img" aria-label="Animated map of the agents in this session"></svg>
+        <svg id="gantt" style="display:none" role="group" aria-label="Timeline of the agents: when each started and finished"></svg>
+        <div id="overlay"></div>
+      </div>
+      <div id="story" aria-live="off"></div>
+    </div>
+    <div class="side">
+      <div class="card"><h3>Now</h3><div id="phase"></div></div>
+      <div class="card"><h3>Counters</h3><div class="stats" id="stats"></div></div>
+      <div class="card"><h3>Most used tools so far</h3><table id="lb"></table><p class="note" id="lbnote"></p></div>
+      <div class="card"><h3>What just happened</h3><div id="feed" aria-live="polite"></div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:14px">Source: ~/.claude/agent-monitor/events.jsonl, written by a Claude Code hook on every session start and end, prompt, tool call, subagent start and stop, and each time a session waits for your approval or answer. It keeps only tool names and short summaries, never file contents or command output. Nothing leaves this computer. Long idle gaps are shortened. Served by agent-monitor/server.js.</p>
+  <div id="tip" role="tooltip"></div>
+  <aside id="drawer" aria-label="Details"><button class="close" aria-label="Close">×</button><div id="drawer-body"></div></aside>
+  <svg width="0" height="0" style="position:absolute"><defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface-2)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--text-muted)" stroke-width="2"/></pattern>
+  </defs></svg>
+</div>
+<script>window.EXPORT = {"ev":[{"v":1,"ts":"2026-11-08T10:05:57.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"The login test fails about one run in ten. Find out why and fix it.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-sonnet-5-5"},{"v":1,"ts":"2026-11-08T10:06:02.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_000089","summary":"tests/login.spec.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:06:10.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_00008a","summary":"Run the login test 50 times","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:06:14.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_00008a","summary":"Exit code 1: 6 of 50 runs failed","status":"failed","entry":"claude-desktop","event":"PostToolUseFailure"},{"v":1,"ts":"2026-11-08T10:06:22.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Grep","tool_use_id":"toolu_00008b","summary":"setTimeout|waitFor","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:06:31.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_00008c","summary":"src/auth/session.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:06:45.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_00008d","summary":"tests/login.spec.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:07:05.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_00008e","summary":"Run the login test 50 times","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:07:11.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":1828,"o":5909,"cr":92003,"cw":12736}},{"v":1,"ts":"2026-11-08T10:10:05.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Nice. Add a comment saying why the wait is needed.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-sonnet-5-5"},{"v":1,"ts":"2026-11-08T10:10:13.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_00008f","summary":"tests/login.spec.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-08T10:10:17.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":811,"o":1491,"cr":34725,"cw":3928}},{"v":1,"ts":"2026-11-08T10:12:13.509Z","session":"demo-flaky-login","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"fix/flaky-login","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"prompt_input_exit","status":"ended","entry":"claude-desktop","event":"SessionEnd"},{"v":1,"ts":"2026-11-09T07:05:57.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Add a search box that finds recipes by ingredient. Keep it fast, we have 40k recipes.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T07:06:03.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Glob","tool_use_id":"toolu_000001","summary":"src/**/*.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:06:07.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_000002","summary":"src/api/recipes.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:06:14.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_000003","summary":"src/db/schema.sql","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:06:23.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Grep","tool_use_id":"toolu_000004","summary":"ingredients","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:06:43.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000005","summary":"src/db/schema.sql","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:07:08.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Write","tool_use_id":"toolu_000006","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:07:26.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000007","summary":"src/components/SearchBox.tsx","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:07:56.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000008","summary":"Run the unit tests","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:08:08.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000009","summary":"Benchmark search on 40k recipes","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:08:16.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":1762,"o":9016,"cr":293793,"cw":15172}},{"v":1,"ts":"2026-11-09T07:12:08.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Before we go further, how does the API do pagination today?","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T07:12:12.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Agent","tool_use_id":"toolu_00000b","summary":"Map how pagination works across the API","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:12:14.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":"Explore","tool":null,"tool_use_id":null,"summary":"Map how pagination works across the API","status":"running","entry":"claude-desktop","event":"SubagentStart"},{"v":1,"ts":"2026-11-09T07:12:39.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":null,"tool":"Grep","tool_use_id":"toolu_00000c","summary":"limit|offset|cursor","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:13:04.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00000d","summary":"src/api/recipes.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:13:29.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00000e","summary":"src/api/users.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:13:54.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00000f","summary":"src/lib/paginate.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:14:19.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":null,"tool":"Grep","tool_use_id":"toolu_000010","summary":"paginate(","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:14:44.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00000a","parent":"main","agent_type":"Explore","tool":null,"tool_use_id":null,"summary":"Two styles: recipes and users use offset/limit via src/lib/paginate.ts; comments use cursors. Search should reuse paginate() for consistency.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":1302,"o":2228,"cr":126070,"cw":7708}},{"v":1,"ts":"2026-11-09T07:14:55.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000011","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:15:01.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":1770,"o":2726,"cr":63638,"cw":11673}},{"v":1,"ts":"2026-11-09T07:17:55.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Make it fuzzy, so 'tomatos' still finds tomatoes.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T07:18:15.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"AskUserQuestion","tool_use_id":"toolu_000012","summary":"Which fuzzy matching approach should we use?","status":"needs_input","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:18:50.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"AskUserQuestion","tool_use_id":"toolu_000012","summary":"Trigram index in Postgres (Recommended)","status":"ok","entry":"claude-desktop","event":"PostToolUse","qa":[["Which fuzzy matching approach should we use?","Trigram index in Postgres (Recommended)"]]},{"v":1,"ts":"2026-11-09T07:19:00.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000013","summary":"src/db/schema.sql","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:19:15.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000014","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:19:35.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000015","summary":"Run the unit tests","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:19:39.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000015","summary":"Exit code 1: 2 tests failed (search.spec.ts)","status":"failed","entry":"claude-desktop","event":"PostToolUseFailure"},{"v":1,"ts":"2026-11-09T07:19:49.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_000016","summary":"src/api/search.spec.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:20:05.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000017","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:20:23.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000018","summary":"Run the unit tests","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:20:33.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000019","summary":"Benchmark fuzzy search","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:20:41.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":4450,"o":6093,"cr":135262,"cw":10754}},{"v":1,"ts":"2026-11-09T07:25:33.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Review the whole change before I merge it.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T07:25:39.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Agent","tool_use_id":"toolu_00001b","summary":"Review the ingredient search diff","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:25:41.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00001a","parent":"main","agent_type":"code-reviewer","tool":null,"tool_use_id":null,"summary":"Review the ingredient search diff","status":"running","entry":"claude-desktop","event":"SubagentStart"},{"v":1,"ts":"2026-11-09T07:25:42.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Agent","tool_use_id":"toolu_000021","summary":"Check the search endpoint for injection","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:25:44.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a000020","parent":"main","agent_type":"security-reviewer","tool":null,"tool_use_id":null,"summary":"Check the search endpoint for injection","status":"running","entry":"claude-desktop","event":"SubagentStart"},{"v":1,"ts":"2026-11-09T07:26:30.259Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a000020","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000022","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:26:31.909Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00001a","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00001c","summary":"Show the branch diff","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:27:16.009Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a000020","parent":"main","agent_type":null,"tool":"Grep","tool_use_id":"toolu_000023","summary":"query\\(","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:27:22.309Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00001a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00001d","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:28:01.759Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a000020","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000024","summary":"src/db/client.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:28:12.709Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00001a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00001e","summary":"src/components/SearchBox.tsx","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:28:47.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a000020","parent":"main","agent_type":"security-reviewer","tool":null,"tool_use_id":null,"summary":"No injection: the query is parameterised. Suggest a 100-character cap on the search term.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":1778,"o":4840,"cr":120332,"cw":4375}},{"v":1,"ts":"2026-11-09T07:29:03.109Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00001a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00001f","summary":"src/api/search.spec.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:29:53.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"a00001a","parent":"main","agent_type":"code-reviewer","tool":null,"tool_use_id":null,"summary":"1 issue: the search box fires a request per keystroke; debounce it (250 ms). Otherwise clean, tests cover the fuzzy cases.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":1578,"o":4281,"cr":91449,"cw":16745}},{"v":1,"ts":"2026-11-09T07:30:13.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000025","summary":"src/components/SearchBox.tsx","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:30:23.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000026","summary":"src/api/search.ts","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:30:43.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000027","summary":"Run the unit tests","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:30:49.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":2184,"o":2776,"cr":160878,"cw":10022}},{"v":1,"ts":"2026-11-09T07:32:43.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Write a short release note for this.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T07:32:55.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000028","summary":"CHANGELOG.md","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T07:33:00.509Z","session":"demo-recipe-search","project":"recipe-finder","cwd":"/home/sam/code/recipe-finder","repo":"recipe-finder","branch":"feature/ingredient-search","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":735,"o":1520,"cr":33339,"cw":1654}},{"v":1,"ts":"2026-11-09T10:55:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Set up a benchmark harness: random, sorted, reversed and nearly sorted inputs, 1k to 1M items.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T10:56:03.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000033","summary":"List the project","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T10:56:11.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Write","tool_use_id":"toolu_000034","summary":"bench/harness.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T10:56:23.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Write","tool_use_id":"toolu_000035","summary":"bench/inputs.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T10:56:38.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000036","summary":"Run a smoke test of the harness","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T10:56:48.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000037","summary":"bench/harness.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T10:57:02.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000038","summary":"Run a smoke test of the harness","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T10:57:10.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":2878,"o":7108,"cr":171300,"cw":10901}},{"v":1,"ts":"2026-11-09T11:13:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Run a swarm: one agent per algorithm (quicksort, merge sort, timsort, radix), then measure and fact-check each result.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-opus-5-5"},{"v":1,"ts":"2026-11-09T11:14:17.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Workflow","tool_use_id":"toolu_000039","summary":"sort-bench","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:14:44.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"E1 Quicksort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Explore","task":"Implement quicksort in bench/algos/quicksort.py, tune it, and report its best variant.","handoff":false},{"v":1,"ts":"2026-11-09T11:14:51.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"E2 Merge sort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Explore","task":"Implement merge sort in bench/algos/merge.py, tune it, and report its best variant.","handoff":false},{"v":1,"ts":"2026-11-09T11:14:58.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"E3 Timsort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Explore","task":"Implement timsort in bench/algos/timsort.py, tune it, and report its best variant.","handoff":false},{"v":1,"ts":"2026-11-09T11:15:05.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"E4 Radix sort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Explore","task":"Implement radix sort in bench/algos/radix.py, tune it, and report its best variant.","handoff":false},{"v":1,"ts":"2026-11-09T11:17:38.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00005f","summary":"bench/harness.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:18:04.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00003b","summary":"bench/harness.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:19:04.842Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00004d","summary":"bench/harness.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:19:29.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000071","summary":"bench/harness.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:20:18.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_000060","summary":"bench/algos/timsort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:20:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_00007e","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:21:24.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_00003c","summary":"bench/algos/quicksort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:22:58.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000061","summary":"Run the harness on 10k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:23:18.175Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_00004e","summary":"bench/algos/merge.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:23:53.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_000072","summary":"bench/algos/radix.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:24:44.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00003d","summary":"Run the harness on 10k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:24:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_00007f","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:25:38.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000062","summary":"bench/algos/timsort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:27:31.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00004f","summary":"Run the harness on 10k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:28:04.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_00003e","summary":"bench/algos/quicksort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:28:17.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000073","summary":"Run the harness on 10k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:28:18.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000063","summary":"Run the harness on 100k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:28:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000080","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:30:58.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000064","summary":"bench/algos/timsort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:31:24.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00003f","summary":"Run the harness on 100k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:31:44.842Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000050","summary":"bench/algos/merge.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:31:57.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Add a dark mode toggle that remembers my choice.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-sonnet-5-5"},{"v":1,"ts":"2026-11-09T11:32:02.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Grep","tool_use_id":"toolu_000029","summary":"color|background","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:32:08.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_00002a","summary":"src/styles/theme.css","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:32:22.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_00002b","summary":"src/styles/theme.css","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:32:38.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Write","tool_use_id":"toolu_00002c","summary":"src/components/ThemeToggle.svelte","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:32:41.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000074","summary":"bench/algos/radix.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:32:50.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_00002d","summary":"src/App.svelte","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:32:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000081","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:33:10.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_00002e","summary":"Build and run the tests","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:33:16.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":null,"status":"idle","entry":"claude-desktop","event":"Stop","tok":{"i":1021,"o":7169,"cr":181853,"cw":15173}},{"v":1,"ts":"2026-11-09T11:33:38.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000065","summary":"Run the harness on 1M items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:34:44.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000040","summary":"bench/algos/quicksort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:35:58.175Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000051","summary":"Run the harness on 100k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:36:18.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_000066","summary":"results/timsort.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:36:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000082","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:37:05.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000075","summary":"Run the harness on 100k items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:38:04.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000041","summary":"Run the harness on 1M items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:38:58.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00005e","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Timsort: best variant standard library sorted(); 0.12 s on 1M random items.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":6434,"o":5975,"cr":157424,"cw":13684}},{"v":1,"ts":"2026-11-09T11:39:23.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000067","parent":"a00005e","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C3 Measurer E03_timsort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Measure","task":"Re-run results/timsort.json five times on every input shape; report mean and spread.","handoff":true},{"v":1,"ts":"2026-11-09T11:40:11.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000052","summary":"bench/algos/merge.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:40:52.193Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000067","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000068","summary":"results/timsort.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:40:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000083","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:41:24.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_000042","summary":"results/quicksort.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:41:29.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000076","summary":"Run the harness on 1M items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:41:33.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000076","summary":"MemoryError: radix buckets for 1M items exceed 2 GB","status":"failed","entry":"claude-desktop","event":"PostToolUseFailure"},{"v":1,"ts":"2026-11-09T11:42:20.878Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000067","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000069","summary":"Run the harness 5 times, all input shapes","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:43:49.562Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000067","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00006a","summary":"Compute mean and spread","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:44:24.842Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000053","summary":"Run the harness on 1M items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:44:44.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00003a","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Quicksort: best variant median-of-three pivot; 0.41 s on 1M random items.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":4066,"o":7671,"cr":237934,"cw":27626}},{"v":1,"ts":"2026-11-09T11:44:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000084","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:45:09.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000043","parent":"a00003a","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C3 Measurer E01_quicksort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Measure","task":"Re-run results/quicksort.json five times on every input shape; report mean and spread.","handoff":true},{"v":1,"ts":"2026-11-09T11:45:18.247Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000067","parent":"a00005e","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Confirmed within 4%: mean 0.12 s.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":1637,"o":2998,"cr":110672,"cw":9733}},{"v":1,"ts":"2026-11-09T11:45:38.247Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00006b","parent":"a000067","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C4 Fact-check E03_timsort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Fact-check","task":"Check the timsort claims against the raw numbers and the code.","handoff":true},{"v":1,"ts":"2026-11-09T11:45:53.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Edit","tool_use_id":"toolu_000077","summary":"bench/algos/radix.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:46:25.879Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000043","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000044","summary":"results/quicksort.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:46:32.459Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00006b","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00006c","summary":"bench/algos/timsort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:47:26.670Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00006b","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00006d","summary":"results/timsort.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:47:42.249Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000043","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000045","summary":"Run the harness 5 times, all input shapes","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:48:20.882Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00006b","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00006e","summary":"Re-run the worst case","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:48:38.175Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_000054","summary":"results/merge.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:48:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000085","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:48:58.619Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000043","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000046","summary":"Compute mean and spread","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:49:15.093Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00006b","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00006f","summary":"Compare against the claim","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:50:09.305Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00006b","parent":"a000067","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Claims hold. Worst case is reversed input, as reported.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":3557,"o":4073,"cr":164199,"cw":8303}},{"v":1,"ts":"2026-11-09T11:50:14.989Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000043","parent":"a00003a","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Confirmed within 4%: mean 0.42 s.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":916,"o":4115,"cr":75770,"cw":8992}},{"v":1,"ts":"2026-11-09T11:50:17.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000078","summary":"Run the harness on 1M items","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:50:34.989Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000047","parent":"a000043","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C4 Fact-check E01_quicksort","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Fact-check","task":"Check the quicksort claims against the raw numbers and the code.","handoff":true},{"v":1,"ts":"2026-11-09T11:51:42.746Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000047","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000048","summary":"bench/algos/quicksort.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:52:50.502Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000047","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000049","summary":"results/quicksort.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:52:51.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00004c","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Merge sort: best variant bottom-up, insertion sort below 32; 0.58 s on 1M random items.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":2490,"o":14933,"cr":258433,"cw":29293}},{"v":1,"ts":"2026-11-09T11:52:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000086","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:53:16.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000055","parent":"a00004c","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C3 Measurer E02_merge","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Measure","task":"Re-run results/merge.json five times on every input shape; report mean and spread.","handoff":true},{"v":1,"ts":"2026-11-09T11:53:58.259Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000047","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00004a","summary":"Re-run the worst case","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:54:24.912Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000055","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_000056","summary":"results/merge.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:54:41.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":null,"tool":"Write","tool_use_id":"toolu_000079","summary":"results/radix.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:55:06.016Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000047","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00004b","summary":"Compare against the claim","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:55:33.315Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000055","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000057","summary":"Run the harness 5 times, all input shapes","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:56:13.773Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000047","parent":"a000043","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Claims hold. Worst case is reversed input, as reported.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":1469,"o":2711,"cr":190383,"cw":12008}},{"v":1,"ts":"2026-11-09T11:56:41.718Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000055","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_000058","summary":"Compute mean and spread","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:56:57.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":null,"tool_use_id":null,"summary":"Follow the system setting by default, and make the charts readable in dark mode too.","status":"prompt","entry":"claude-desktop","event":"UserPromptSubmit","model":"claude-sonnet-5-5"},{"v":1,"ts":"2026-11-09T11:56:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000087","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:57:03.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Read","tool_use_id":"toolu_00002f","summary":"src/components/Chart.svelte","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:57:13.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000030","summary":"src/styles/theme.css","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:57:25.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"Edit","tool_use_id":"toolu_000031","summary":"src/components/Chart.svelte","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:57:40.509Z","session":"demo-weather-dark","project":"weather-dash","cwd":"/home/sam/code/weather-dash","repo":"weather-dash","branch":"feature/dark-mode","agent":"main","parent":null,"agent_type":null,"tool":"AskUserQuestion","tool_use_id":"toolu_000032","summary":"Should the toggle sit in the header or in the settings page?","status":"needs_input","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:57:50.122Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000055","parent":"a00004c","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Confirmed within 4%: mean 0.57 s.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":1996,"o":5982,"cr":78996,"cw":11527}},{"v":1,"ts":"2026-11-09T11:58:10.122Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000059","parent":"a000055","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C4 Fact-check E02_merge","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Fact-check","task":"Check the merge sort claims against the raw numbers and the code.","handoff":true},{"v":1,"ts":"2026-11-09T11:59:05.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000070","parent":"main","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Radix sort: best variant LSD, 8-bit digits; 0.36 s on 1M random items.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":5665,"o":14151,"cr":266595,"cw":22123}},{"v":1,"ts":"2026-11-09T11:59:22.085Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000059","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00005a","summary":"bench/algos/merge.py","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T11:59:30.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00007a","parent":"a000070","agent_type":"workflow","tool":null,"tool_use_id":"toolu_000039","summary":"C3 Measurer E04_radix","status":"running","entry":"claude-desktop","event":"SubagentStart","wf":"sort-bench","phase":"Measure","task":"Re-run results/radix.json five times on every input shape; report mean and spread.","handoff":true},{"v":1,"ts":"2026-11-09T12:00:00.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00007a","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00007b","summary":"results/radix.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:00:34.048Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000059","parent":"main","agent_type":null,"tool":"Read","tool_use_id":"toolu_00005b","summary":"results/merge.json","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:00:40.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00007a","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00007c","summary":"Run the harness 5 times, all input shapes","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:00:57.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"main","parent":null,"agent_type":null,"tool":"Bash","tool_use_id":"toolu_000088","summary":"Check the swarm progress","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:01:40.509Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a00007a","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00007d","summary":"Compute mean and spread","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:01:46.011Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000059","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00005c","summary":"Re-run the worst case","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:02:57.974Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000059","parent":"main","agent_type":null,"tool":"Bash","tool_use_id":"toolu_00005d","summary":"Compare against the claim","status":"running","entry":"claude-desktop","event":"PreToolUse"},{"v":1,"ts":"2026-11-09T12:04:09.937Z","session":"demo-sort-swarm","project":"algo-lab","cwd":"/home/sam/code/algo-lab","repo":"algo-lab","branch":"main","agent":"a000059","parent":"a000055","agent_type":"workflow","tool":null,"tool_use_id":null,"summary":"Claims hold. Worst case is reversed input, as reported.","status":"done","entry":"claude-desktop","event":"SubagentStop","tok":{"i":2119,"o":5986,"cr":93368,"cw":15502}}],"desk":{"sessions":[{"id":"local_demo-recipe-search","cliIds":["demo-recipe-search"],"title":"Recipe finder: search by ingredient","cwd":"/home/sam/code/recipe-finder","project":"recipe-finder","archived":false,"createdAt":1794207957509,"lastActivityAt":1794209580509,"model":"claude-opus-5-5","group":null},{"id":"local_demo-weather-dark","cliIds":["demo-weather-dark"],"title":"Weather dashboard: dark mode","cwd":"/home/sam/code/weather-dash","project":"weather-dash","archived":false,"createdAt":1794223917509,"lastActivityAt":1794225460509,"model":"claude-sonnet-5-5","group":null},{"id":"local_demo-sort-swarm","cliIds":["demo-sort-swarm"],"title":"Benchmark four sorting algorithms","cwd":"/home/sam/code/algo-lab","project":"algo-lab","archived":false,"createdAt":1794221757509,"lastActivityAt":1794225849937.3071,"model":"claude-opus-5-5","group":{"id":"g-weekend","name":"Weekend hacks","order":0,"sortBy":"recency","ascending":false}},{"id":"local_demo-flaky-login","cliIds":["demo-flaky-login"],"title":"Fix the flaky login test","cwd":"/home/sam/code/recipe-finder","project":"recipe-finder","archived":false,"createdAt":1794132357509,"lastActivityAt":1794132733509,"model":"claude-sonnet-5-5","group":null}]},"sel":"local_demo-sort-swarm","focus":["turn2"],"at":1794226017509,"made":1794225957509,"note":"A live demo with made-up sessions. Click a session on the left, a prompt above the map, or switch to Timeline. Press Play to replay."};</script>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+// an exported replay carries its events in window.EXPORT; its clock stops a minute after its last event, so nothing ages
+const EXPORT = window.EXPORT || null;
+if (EXPORT) { const at = EXPORT.at; Date.now = () => at; }
+// cards per row: as many as fit at about 200 px each, so their names stay readable (set by fitColumns)
+let PER_ROW = 5; const QUIET = 30 * 60000;
+function fitColumns() {
+  // about 200 px a card; in a narrow middle column down to 160 px, so three still fit without scrolling sideways
+  const w = (document.getElementById("stage-wrap").clientWidth || 960) - 8, room = w - 328;
+  const n = Math.max(2, Math.min(6, Math.max(Math.floor(room / 200), Math.min(3, Math.floor(room / 160)))));
+  const changed = n !== PER_ROW; PER_ROW = n; return changed;
+}
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const h = (tag, attrs = {}, text, parent) => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; };
+const $ = id => document.getElementById(id);
+const fmtHM = t => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const fmtDay = t => new Date(t).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const fmtDur = ms => { const s = Math.round(ms / 1000); if (s < 60) return `${s} s`; const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+const ago = t => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : new Date(t).toLocaleDateString(); };
+const cap1 = s => s[0].toUpperCase() + s.slice(1);
+const calls = n => `${n} tool call${n === 1 ? "" : "s"}`;
+const fmtRange = (a, b) => { let x = fmtHM(a); const y = fmtHM(b), suf = x.match(/\s*[^\d\s:.]+$/); if (suf && y.endsWith(suf[0])) x = x.slice(0, -suf[0].length); return `${x}–${y}`; };
+const fmtHMS = t => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const fmtDurS = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`; };
+// when an agent started and finished: "14:02:11 → 14:05:40 · 3m 29s"; a run on another day says which
+const spanText = a => { const d = new Date(a.start).toDateString() !== new Date().toDateString() ? new Date(a.start).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) + " " : "";
+  return `${d}${fmtHMS(a.start)} → ${a.end != null ? fmtHMS(a.end) : "now"} · ${fmtDurS((a.end ?? Date.now()) - a.start)}${a.end == null ? " so far" : ""}`; };
+// tokens, as Claude Code's transcripts record them: i fresh input, o output, cr cache read, cw cache write
+const fmtTok = n => n >= 1e6 ? (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + "M" : n >= 1e3 ? (n / 1e3).toFixed(n < 1e4 ? 1 : 0) + "k" : String(n);
+const addTok = (r, k) => { if (!r || !k) return; const t = r.tok ||= { i: 0, o: 0, cr: 0, cw: 0 }; for (const x in t) t[x] += +k[x] || 0; };
+const sumTok = runs => { let t = null; for (const r of runs) if (r.tok) { t ||= { i: 0, o: 0, cr: 0, cw: 0 }; for (const x in t) t[x] += r.tok[x]; } return t; };
+const tokShort = k => k ? `${fmtTok(k.i + k.cr + k.cw)} in · ${fmtTok(k.o)} out` : null;
+const tokLong = k => k ? `${fmtTok(k.i + k.cr + k.cw)} in (${fmtTok(k.i)} fresh, ${fmtTok(k.cr)} from cache, ${fmtTok(k.cw)} written to cache) · ${fmtTok(k.o)} out` : "not recorded";
+const bisect = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m + 1; else hi = m; } return lo; };   // count of arr <= t
+const T = e => Date.parse(e.ts);
+const byTs = (a, b) => T(a) - T(b);
+const endOf = a => a.end ?? Infinity;
+const colOf = a => a.quiet ? "var(--report)" : a.kind === "turn" ? "var(--search)" : "var(--check)";
+const STATUS_TEXT = { input: "needs your input", working: "working", idle: "waiting for you", quiet: "no news for 30+ min", ended: "ended" };
+const INPUT_MAX = 12 * 3600000;   // a wait older than this is treated as stale (session closed without telling us)
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---- waits for you, per agent: a needs_input event opens one; that agent getting past it closes it
+function inputStep(waits, e) {
+  const a = e.agent || "main", w = waits[a];
+  if (e.status === "needs_input") {
+    const text = e.event === "PermissionRequest" ? `Approve ${e.summary}` : e.tool === "AskUserQuestion" ? `Question: ${e.summary}` : e.summary;
+    waits[a] = { since: w ? w.since : T(e), text: (w && w.text) || text || "Waiting for you", tool: (w && w.tool) || (e.event === "Notification" ? null : e.tool) };
+    return { opened: w ? null : a, closed: [] };
+  }
+  const all = e.event === "UserPromptSubmit" || e.event === "SessionEnd";
+  // parallel tool calls finish while one waits, so only the waiting tool's result (or the agent stopping) closes it
+  const done = w && (e.event === "Stop" || e.event === "SubagentStop" || ((e.event === "PostToolUse" || e.event === "PostToolUseFailure") && (!w.tool || w.tool === e.tool)));
+  const closed = all ? Object.keys(waits) : done ? [a] : [];
+  for (const k of closed) delete waits[k];
+  return { opened: null, closed };
+}
+const waitAt = (a, t) => a.waits.find(w => w.t0 <= t && (w.t1 == null ? Date.now() - w.t0 < INPUT_MAX : t < w.t1));
+
+// ---- data: every event from the server, and the sessions they belong to
+let EV = [], SESS = [], GROUPS = [], M = null, DESK = { sessions: [] };
+let sel = null;
+try { sel = decodeURIComponent((location.hash.match(/session=([^&]+)/) || [])[1] || "") || null; } catch {}   // a malformed link just opens the first session
+// the access key from the link /agent-monitor:open prints; the server answers no data without it
+const KEY = new URLSearchParams(location.search).get("k") || "";
+const api = p => `${p}?k=${encodeURIComponent(KEY)}`;
+let showOthers = localStorage.getItem("am-others") === "on";   // runs the desktop app doesn't list: terminal, scripted, archived
+
+// Sessions mirror the desktop app's sidebar: same titles, your custom groups first, then one group per project
+// folder (A to Z), sorted like the app. A desktop session is matched by the id the hook records (host) or,
+// for older events, by the Claude Code session id behind it.
+function buildSessions() {
+  const byCli = {}, by = new Map();
+  for (const d of DESK.sessions) for (const c of d.cliIds) byCli[c] = d.id;
+  const get = (id, t) => { let s = by.get(id); if (!s) by.set(id, s = { id, first: t, last: t, title: null, waits: {}, lastEv: null }); return s; };
+  for (const e of EV) {
+    if (!e.session) continue;
+    const s = get(e._sid = e.host || byCli[e.session] || e.session, T(e));
+    s.last = T(e); s.lastEv = e;
+    for (const k of ["cwd", "project", "group"]) if (e[k] && !s[k]) s[k] = e[k];   // the folder the session was opened in
+    for (const k of ["repo", "branch"]) if (e[k] && e[k] !== "HEAD") s[k] = e[k];   // transcripts say HEAD outside git
+    if (!s.title && e.event === "UserPromptSubmit" && e.summary) s.title = e.summary;
+    inputStep(s.waits, e);
+  }
+  for (const d of DESK.sessions) { const s = get(d.id, d.createdAt); s.desk = d; s.first = d.createdAt || s.first; }   // listed even before any event
+  const now = Date.now(), groups = new Map(), hidden = { n: 0 };
+  const groupFor = (key, name, kind, sortBy, order) => groups.get(key) || groups.set(key, { key, name, kind, sortBy, order, sessions: [] }).get(key);
+  for (const s of by.values()) {
+    const d = s.desk;
+    s.other = !d || d.archived;
+    if (s.other && !showOthers) { hidden.n++; continue; }
+    if (d) { s.title = d.title || s.title; s.cwd = d.cwd || s.cwd; s.project = s.project || d.project; s.last = Math.max(s.last, d.lastActivityAt || 0); }
+    s.input = Object.values(s.waits).filter(w => now - w.since < INPUT_MAX).sort((a, b) => a.since - b.since)[0] || null;
+    const ev = s.lastEv, ended = ev && ev.event === "SessionEnd" && ev.summary !== "imported";   // an import's end only means "the transcript stops here"
+    // only a prompt, tool call or subagent in flight means working; just opened or resumed is idle, like a finished turn
+    const idle = ev && (["Stop", "SessionStart", "SessionEnd"].includes(ev.event) || ev.status === "idle_prompt");
+    s.status = s.input ? "input" : d && d.archived ? "ended" : ended ? "ended" : !ev || now - s.last > QUIET ? "quiet" : idle ? "idle" : "working";
+    let g;
+    if (d && !d.archived && d.group) g = groupFor("g:" + d.group.id, d.group.name, "manual", d.group.sortBy, d.group.order);
+    else {
+      const name = (d && d.project) || s.group || s.project || "(unknown folder)";
+      g = groupFor((s.other ? "o:" : "p:") + name.toLowerCase(), name, s.other ? "other" : "project", "recency", 0);
+    }
+    g.sessions.push(s); s.gkey = g.key;
+  }
+  const KIND = { manual: 0, project: 1, other: 2 };
+  for (const g of groups.values()) {
+    g.sessions.sort(g.sortBy === "created" ? (a, b) => b.first - a.first : (a, b) => b.last - a.last);
+    g.input = g.sessions.some(s => s.input);
+  }
+  GROUPS = [...groups.values()].sort((a, b) => KIND[a.kind] - KIND[b.kind] || a.order - b.order || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  SESS = GROUPS.flatMap(g => g.sessions);
+  HIDDEN = hidden.n;
+  if (!SESS.some(s => s.id === sel)) sel = SESS[0] ? SESS[0].id : null;
+}
+let HIDDEN = 0;
+
+// ---- one session as runs: each prompt is a main-agent turn, each subagent start/stop a run
+// at: the moment the map shows (null = now); the map draws the turns around it, not only the last few
+// A "prompt" the hook logged that you didn't write: what it was, in words; null for something you typed.
+// Slash commands count as not typed too (you asked for prompts to be only your own words).
+const INJECTED = [
+  [/^<task-notification/, p => "A background agent reported back" + ((p.match(/<summary>([^<]*)/) || [])[1] ? ": " + p.match(/<summary>([^<]*)/)[1] : "")],
+  [/^<agent-message/, () => "A subagent handed back its report"],
+  [/^<side-sessions-event/, () => "A side session reported"],
+  [/^<cross-session-message/, () => "A message from another session"],
+  [/^<ci-monitor-event/, () => "A CI update on the pull request"],
+  [/^This session is being continued/, () => "The session continued after compacting"],
+  [/^<[a-z][\w-]*[\s>]/i, p => `A note Claude Code added (${p.match(/^<([\w-]+)/)[1]})`],   // any other tagged message (system-reminder, …): you don't type those
+  [/^\/[a-z][\w-]*(:[\w-]+)?(\s|$)/i, p => "You ran " + p],
+];
+function notTyped(p) {
+  if (!p) return null;
+  for (const [re, say] of INJECTED) if (re.test(p)) return say(p);
+  return null;
+}
+// "claude-opus-5-5" -> "Opus 5.5"; "claude-3-5-sonnet-20241022" -> "Sonnet 3.5"; dates and provider suffixes dropped
+function prettyModel(id) {
+  const p = String(id).replace(/^.*?claude-/i, "").replace(/[@[].*$/, "").split("-");
+  const fam = p.find(x => /^[a-z]+$/i.test(x)), ver = p.filter(x => /^\d{1,2}$/.test(x)).join(".");
+  return fam ? cap1(fam) + (ver ? " " + ver : "") : String(id);
+}
+const mainName = (agent, model) => agent || (model ? "Claude " + prettyModel(model) : "Claude");
+function buildModel(sid, at, focus) {
+  const s = SESS.find(x => x.id === sid);
+  const evs = EV.filter(e => e._sid === sid);   // every Claude Code session id behind this desktop session
+  const all = [], turns = [], subs = [], events = [], tools = {}, byUse = {}, openSub = {}, seenSub = {}, typeCount = {}, waits = {}, openWait = {}, agentQ = [];
+  // the model: from each prompt (import) or session start (hook); else the one the desktop app has for this session
+  let turn = null, ended = null, curModel = (DESK.sessions.find(d => d.id === sid) || {}).model || null, curAgent = null;
+  // a subagent kind that ran once is just its name ("security-reviewer"); "#2" only when the same kind ran again
+  const typeTotal = {};
+  for (const e of evs) if (e.event === "SubagentStart" && !e.wf) typeTotal[e.agent_type || "agent"] = (typeTotal[e.agent_type || "agent"] || 0) + 1;
+  const newRun = o => { const r = { calls: [], failed: 0, end: null, waits: [], qa: [], ...o }; all.push(r); return r; };
+  const openTurn = () => turn && turn.end == null ? turn : null;
+  // T0 holds what happened before your first typed prompt (a slash command, a report); real prompts count from T1
+  const startTurn = (t, summary, implicit, before) => {
+    if (openTurn()) turn.end = t;
+    const n = before ? 0 : turns.filter(x => x.n > 0).length + 1;
+    turn = newRun({ id: "turn" + n, kind: "turn", n, label: `${mainName(curAgent, curModel)} · T${n}`, model: curModel, start: t, summary, parent: "orch", parts: [] });
+    turns.push(turn);
+    events.push({ t, text: implicit ? `▶ ${turn.label} was already under way when logging began` : before ? `▶ Activity before your first prompt` : `▶ ${turn.label} starts: ${summary || "(empty prompt)"}` });
+    return turn;
+  };
+  // what you didn't type yourself (a slash command, a report or message Claude Code injects) is part of the prompt before it
+  const continueTurn = (t, text) => {
+    const tn = turn || startTurn(t, "Before your first prompt", false, true);
+    tn.end = null; turn = tn;   // reopened: its next Stop ends it again
+    tn.parts.push({ t, text });
+    events.push({ t, text: `↩ ${tn.label} continues: ${text}` });
+  };
+  const startSub = (t, e, implicit) => {
+    // a workflow agent: one row per workflow phase, named by its own label, like the swarm replay
+    const wf = e.wf && !implicit, type = wf ? `${e.phase || "Agents"} · ${e.wf}` : e.agent_type || "agent", resumed = !!seenSub[e.agent];
+    typeCount[type] = (typeCount[type] || 0) + 1;
+    // its task and who launched it: the import stores both on the start; live, they come from the Agent call before it
+    const q = implicit || /workflow/.test(e.agent_type || "") ? null : agentQ.shift(), desc = (wf && e.task) || (!implicit && e.summary) || (q && q.desc) || null;
+    const by = e.parent && e.parent !== "main" ? e.parent : q && q.caller !== "main" ? q.caller : null;
+    const launcher = e.tool_use_id && byUse[e.tool_use_id] && byUse[e.tool_use_id][0];   // the Workflow call that started its run
+    const from = by ? openSub[by] || seenSub[by] : launcher || openTurn();
+    const r = newRun({ id: e.agent + "@" + t, agent: e.agent, kind: "sub", type, idx: typeCount[type], desc, label: wf ? e.summary : (typeTotal[type] || 0) > 1 ? `${type} #${typeCount[type]}` : type, start: t,
+      wf: wf ? e.wf : null, phase: wf ? e.phase : null, handoff: !!e.handoff,
+      parent: from ? from.id : "orch", turnId: from ? (from.kind === "turn" ? from.id : from.turnId) : null, resumed });
+    subs.push(r); openSub[e.agent] = seenSub[e.agent] = r;
+    const fromText = from ? (r.handoff ? `right after ${from.label} finished` : `by ${from.label}`) : "outside any turn";
+    events.push({ t, text: implicit ? `▶ ${r.label} was already running when logging began` : `${resumed ? "↻" : "▶"} ${r.label} ${resumed ? "resumed" : "starts"}, started ${fromText}` });
+    return r;
+  };
+  for (const e of evs) {
+    const t = T(e);
+    switch (e.event) {
+      case "SessionStart": ended = null; if (e.model) curModel = e.model; if (e.agent === "main" && e.agent_type) curAgent = e.agent_type; events.push({ t, text: `Session ${e.summary === "resume" ? "resumed" : "started"} in ${e.project || "?"}${e.summary ? ` (${e.summary})` : ""}` }); break;
+      case "UserPromptSubmit": { if (e.model) curModel = e.model; const auto = notTyped(e.summary); if (auto) continueTurn(t, auto); else startTurn(t, e.summary); break; }
+      case "Stop": addTok(turn, e.tok); if (openTurn()) { turn.end = t; events.push({ t, text: `⏸ ${turn.label} done after ${fmtDur(t - turn.start)}, ${calls(turn.calls.length)}. Waiting for you.` }); } break;
+      case "SubagentStart": if (!openSub[e.agent]) startSub(t, e); break;
+      case "SubagentStop": {
+        const r = openSub[e.agent]; addTok(r || seenSub[e.agent], e.tok); if (!r) break;   // internal agents (prompt suggestions, /btw) stop without a start
+        r.end = t; r.result = r.handback || e.summary; delete openSub[e.agent];   // its handback is the real report
+        events.push({ t, text: `✓ ${r.label} finished after ${fmtDur(t - r.start)}, ${calls(r.calls.length)}${r.failed ? `, ${r.failed} failed` : ""}` });
+        break;
+      }
+      case "PreToolUse": {
+        const r = e.agent === "main" || !e.agent ? (openTurn() || startTurn(t, null, true)) : (openSub[e.agent] || startSub(t, e, true));
+        r.calls.push([t, `${e.tool}${e.summary ? ": " + e.summary : ""}`, false]);
+        if (e.tool_use_id) byUse[e.tool_use_id] = [r, r.calls.length - 1];
+        if (e.tool === "Agent" || e.tool === "Task") agentQ.push({ desc: e.summary, caller: e.agent || "main" });   // launches a subagent
+        if (e.tool === "SubagentHandback" && r.kind === "sub") r.handback = e.summary;
+        if (e.tool === "AskUserQuestion" || e.tool === "ExitPlanMode") r.qa.push({ t, id: e.tool_use_id, q: e.tool === "ExitPlanMode" ? "Approve this plan?" : e.summary || "A question", pairs: null, no: null });
+        (tools[e.tool] ||= { ts: [], fts: [] }).ts.push(t);
+        break;
+      }
+      case "PostToolUse": {   // the hook logs only the ones that waited for you, with your answers
+        const hit = byUse[e.tool_use_id], q = hit && hit[0].qa.find(x => x.id === e.tool_use_id);
+        // the import backfills answers the live log lacks, so a later event without answers keeps them
+        if (q) { q.pairs = e.qa || q.pairs || (e.tool === "ExitPlanMode" ? [[q.q, "Approved"]] : null); q.done = true; }
+        break;
+      }
+      case "PostToolUseFailure": {
+        const hit = byUse[e.tool_use_id];
+        const q = hit && hit[0].qa.find(x => x.id === e.tool_use_id);
+        if (q) q.no = e.summary || "declined";
+        if (hit) { hit[0].failed++; hit[0].calls[hit[1]][2] = true; }
+        if (tools[e.tool]) tools[e.tool].fts.push(t);
+        events.push({ t, text: `✕ ${e.tool || "Tool"} ${e.status === "interrupted" ? "interrupted" : "failed"}${hit ? ` in ${hit[0].label}` : ""}${e.summary ? ": " + e.summary : ""}` });
+        break;
+      }
+      case "Tokens": addTok(e.agent === "main" || !e.agent ? turn : seenSub[e.agent], e.tok); break;   // imported: one per turn or subagent
+      case "SessionEnd": ended = t; events.push({ t, text: `Session ended${e.summary ? ` (${e.summary})` : ""}` }); break;
+    }
+    const { opened, closed } = inputStep(waits, e);
+    for (const k of closed) if (openWait[k]) { openWait[k].t1 = t; delete openWait[k]; }
+    if (opened) {
+      const r = opened === "main" ? openTurn() : openSub[opened];
+      if (r) { r.waits.push(openWait[opened] = { t0: t, t1: null, text: waits[opened].text }); events.push({ t, text: `⚠ ${r.label} needs your input: ${waits[opened].text}` }); }
+    }
+  }
+  const now = Date.now(), last = s ? s.last : now;
+  for (const r of all) {
+    r.callT = r.calls.map(c => c[0]);
+    if (r.end != null) continue;
+    if (ended && ended >= r.start) r.end = ended;   // a resumed session ends again only after its own end
+    else if (now - last > QUIET && !waitAt(r, now)) { r.end = r.calls.length ? r.callT[r.callT.length - 1] : r.start; r.quiet = true; }
+  }
+  // layout: blue main agent on the left, the orange agents it set off to its right, work flowing left to right.
+  // All prompts: one row per turn, its subagents after it in launch order (the overflow folds into a "+N more" card).
+  // Chosen prompts (focus): each turn, then the agents it launched as a tree: one column per step in who started whom, one row per chain;
+  // several chosen prompts stack, oldest first.
+  const BY = Object.fromEntries(all.map(r => [r.id, r]));
+  const fTurns = (focus || []).map(id => BY[id]).filter(r => r && r.kind === "turn").sort((a, b) => a.start - b.start);
+  const rows = [], ROWLABEL = {}, cellRuns = {}, firstStart = {}, more = [], drawn = [], kidsOf = {};
+  for (const r of subs) (kidsOf[r.parent] ||= []).push(r);
+  const put = (r, row, col) => {
+    if (!ROWLABEL[row]) { rows.push(row); ROWLABEL[row] = ["", ""]; }
+    r.row = row; r.col = col; cellRuns[row + "|" + col] = [r]; drawn.push(r);
+    firstStart[row] = Math.min(firstStart[row] ?? Infinity, r.start);
+  };
+  let cols = PER_ROW, w0 = 0, shown = [], scope = all;
+  const spans = [];   // per chosen prompt: from your prompt until its last agent stops
+  if (fTurns.length) {
+    scope = []; cols = 1;
+    let leaf = 0;   // a run sits on the row of its first child; every chain end opens a new row
+    const walk = (r, depth) => {
+      scope.push(r); put(r, "r" + leaf, depth); cols = Math.max(cols, depth + 1);
+      const kids = (kidsOf[r.id] || []).sort((a, b) => a.start - b.start);
+      if (!kids.length) leaf++; else for (const k of kids) walk(k, depth + 1);
+    };
+    for (const ft of fTurns) { const from = scope.length; walk(ft, 0); spans.push([ft.start, Math.max(...scope.slice(from).map(r => r.end ?? Date.now()))]); }
+    shown = fTurns;
+  } else {
+    const span = 8, at_ = at == null ? turns.length : Math.max(1, turns.filter(x => x.start <= at).length);
+    w0 = Math.max(0, Math.min(at_ - span, turns.length - span)); shown = turns.slice(w0, w0 + span);
+    const room = Math.max(1, PER_ROW - 1);   // orange slots after the blue card
+    for (const tn of shown) {
+      put(tn, tn.id, 0);
+      const desc = subs.filter(r => r.turnId === tn.id).sort((a, b) => a.start - b.start);
+      ROWLABEL[tn.id] = [`Turn ${tn.n}`, desc.length ? `${desc.length} subagent${desc.length === 1 ? "" : "s"}` : ""];
+      const fit = desc.length > room ? room - 1 : desc.length;
+      desc.slice(0, fit).forEach((r, i) => put(r, tn.id, i + 1));
+      if (desc.length > fit) more.push({ row: tn.id, col: fit + 1, n: desc.length - fit, turn: tn });
+    }
+  }
+  // counters, tools and the feed cover what the map shows: the whole session, or the chosen prompts
+  let sTools = tools, sEvents = events.sort((a, b) => a.t - b.t), fEnd = null;
+  if (fTurns.length) {
+    sTools = {};
+    for (const r of scope) for (const [ct, cap, bad] of r.calls) { const x = sTools[cap.split(":")[0]] ||= { ts: [], fts: [] }; x.ts.push(ct); if (bad) x.fts.push(ct); }
+    for (const x of Object.values(sTools)) { x.ts.sort((a, b) => a - b); x.fts.sort((a, b) => a - b); }
+    fEnd = Math.max(...spans.map(s => s[1]));
+    sEvents = sEvents.filter(e => spans.some(([a, b]) => e.t >= a - 1 && e.t <= b + 1));
+  }
+  const allCalls = scope.flatMap(r => r.callT).sort((x, y) => x - y);
+  const fIds = fTurns.length ? fTurns.map(x => x.id) : null;
+  const key = JSON.stringify([sid, fIds, cols, rows, drawn.map(r => [r.id, r.row, r.col, r.parent]), more.map(m => [m.row, m.n])]);
+  return { s, all, scope, turns, subs, drawn, rows, ROWLABEL, cellRuns, firstStart, more, cols, BY, events: sEvents, tools: sTools, allCalls, ended, key,
+    focus: fIds, fTurns, fEnd, spans, kidsOf, shown, win: [w0 + 1, w0 + shown.length], turnStarts: turns.map(x => x.start) };
+}
+const tList = ts => ts.map(x => "T" + x.n).join(", ");
+const nameOf = id => id === "orch" ? "you" : (M && M.BY[id] ? M.BY[id].label : "an earlier turn");
+
+// ---- time: idle gaps (> 40 min with nothing running) shortened to 20 min
+let T0, T1, SEGS, R_END;
+function computeTime() {
+  const now = Date.now(), runs = M ? M.scope : [], focus = M && M.focus;
+  // one prompt in focus: the time bar spans only that prompt, from your prompt until its last agent stops
+  T0 = (runs.length ? Math.min(...runs.map(a => a.start)) : now - 10 * 60000) - (focus ? 5000 : 3 * 60000);
+  T1 = focus ? Math.min(now, M.fEnd + 30000) : now;
+  const iv = runs.map(a => [a.start, Math.min(T1, a.end ?? now)]).concat([[T1, T1]]).sort((a, b) => a[0] - b[0]), merged = [];
+  for (const [s, e] of iv) { const m = merged[merged.length - 1]; if (m && s <= m[1] + 40 * 60000) m[1] = Math.max(m[1], e); else merged.push([s, e]); }
+  const segs = []; let cur = T0, r = 0;
+  for (let i = 0; i < merged.length; i++) {
+    if (i) { segs.push({ t0: cur, t1: merged[i][0], gap: true }); cur = merged[i][0]; }
+    segs.push({ t0: cur, t1: i === merged.length - 1 ? T1 : merged[i][1], gap: false }); cur = segs[segs.length - 1].t1;
+  }
+  for (const s of segs) { s.r0 = r; r += s.gap ? 20 * 60000 : s.t1 - s.t0; s.r1 = r; }
+  SEGS = segs; R_END = r;
+}
+const segAtR = r => SEGS.find(s => r <= s.r1) || SEGS[SEGS.length - 1];
+const tOf = r => { const s = segAtR(r); return s.t0 + (r - s.r0) / ((s.r1 - s.r0) || 1) * (s.t1 - s.t0); };
+const rOf = t => { const s = SEGS.find(s => t <= s.t1) || SEGS[SEGS.length - 1]; return s.r0 + (t - s.t0) / ((s.t1 - s.t0) || 1) * (s.r1 - s.r0); };
+
+// ---- sessions column
+const sessKey = {}, PER_GROUP = 5;
+const collapsed = new Set(JSON.parse(localStorage.getItem("am-collapsed") || "[]")), showAll = new Set();
+let revealed = null, autoOpened = null;   // the last selected session we opened the list to, and the folder we opened for it
+function drawSessions() {
+  const cur = SESS.find(s => s.id === sel), newSel = sel !== revealed;
+  // a newly selected session (arrows, alert click, page load) is always shown: open its folder,
+  // and fold back the folder we opened for the previous one, so your own folds stay as you left them
+  if (newSel && cur) {
+    if (autoOpened && autoOpened !== cur.gkey) { collapsed.add(autoOpened); autoOpened = null; }
+    if (collapsed.delete(cur.gkey)) autoOpened = cur.gkey;
+    localStorage.setItem("am-collapsed", JSON.stringify([...collapsed]));
+  }
+  const k = JSON.stringify([sel, showOthers, HIDDEN, [...collapsed], [...showAll], GROUPS.map(g => [g.key, g.name, g.sessions.map(s => [s.id, s.status, s.title, s.project, s.branch, ago(s.last), s.input && s.input.text])])]);
+  if (sessKey.v === k) return; sessKey.v = k;
+  const box = $("sessions"), hadFocus = box.contains(document.activeElement);
+  box.replaceChildren();
+  if (!SESS.length) h("p", { class: "note" }, "No sessions yet. They appear here as soon as any Claude Code session on this computer gets a prompt or runs a tool.", box);
+  let divided = false;
+  for (const g of GROUPS) {
+    if (g.kind === "other" && !divided) { divided = true; h("div", { class: "divider" }, "Other runs: terminal, scripted and archived", box); }
+    const open = !collapsed.has(g.key), waiting = g.sessions.filter(s => s.input).length, here = cur && cur.gkey === g.key;
+    const head = h("button", { class: "ghead" + (here ? " current" : ""), "aria-expanded": String(open), title: (open ? "Collapse " : "Expand ") + g.name + (here ? " (holds the open session)" : "") }, null, box);
+    h("span", { "aria-hidden": "true" }, open ? "▾" : "▸", head); h("span", { class: "gname" }, g.name, head);
+    if (waiting) h("span", { class: "alert" }, `⚠ ${waiting}`, head);
+    h("span", { class: "n" }, g.sessions.length.toLocaleString(), head);
+    head.onclick = () => { open ? collapsed.add(g.key) : collapsed.delete(g.key); if (autoOpened === g.key) autoOpened = null; localStorage.setItem("am-collapsed", JSON.stringify([...collapsed])); drawSessions(); };
+    if (!open) continue;
+    const list = h("div", { class: "group", role: "listbox", "aria-label": g.name }, null, box);
+    const all = showAll.has(g.key), shown = g.sessions.filter((s, i) => all || i < PER_GROUP || s.id === sel || s.input);
+    for (const s of shown) {
+      const on = s.id === sel;
+      const b = h("button", { class: "sess" + (s.input ? " input" : ""), role: "option", "aria-selected": on ? "true" : "false", title: s.cwd || "" }, null, list);
+      h("span", { class: "dot " + s.status, title: STATUS_TEXT[s.status] }, null, b);
+      h("b", {}, s.title || `session ${s.id.slice(0, 8)}`, b);
+      h("span", { class: "ago" + (s.input ? " input" : "") }, s.input ? "needs you" : s.status === "working" ? "working" : ago(s.last), b);
+      // desktop sessions: just the branch; other runs: the subfolder too when it differs from the group (a worktree or a job folder)
+      const sub = g.kind === "other" && s.project && s.project.toLowerCase() !== g.name.toLowerCase() ? s.project : null;
+      const meta = [sub, s.desk && s.desk.archived ? "archived" : null, s.branch ? "⎇ " + s.branch : null].filter(Boolean).join(" · ");
+      if (meta) h("span", { class: "meta" }, meta, b);
+      if (s.input) h("span", { class: "title input" }, "⚠ " + s.input.text, b);
+      b.onclick = () => select(s.id);
+      if (on && hadFocus) b.focus();
+      if (on && newSel) b.scrollIntoView({ block: "nearest" });
+    }
+    if (g.sessions.length > PER_GROUP) {
+      const m = h("button", { class: "more" }, all ? "Show fewer" : `Show all ${g.sessions.length.toLocaleString()}`, box);
+      m.onclick = () => { all ? showAll.delete(g.key) : showAll.add(g.key); drawSessions(); };
+    }
+  }
+  if (showOthers || HIDDEN) {
+    const t = h("button", { class: "more others", "aria-pressed": String(showOthers) }, showOthers ? "Hide other runs" : `Show other runs (${HIDDEN.toLocaleString()}): terminal, scripted, archived`, box);
+    t.onclick = () => { showOthers = !showOthers; localStorage.setItem("am-others", showOthers ? "on" : "off"); refresh(true); };
+  }
+  revealed = sel;
+}
+function select(id) {
+  if (!id || id === sel && M) return;
+  sel = id; state.selTurn = null; history.replaceState(null, "", "#session=" + encodeURIComponent(id));
+  drawer.classList.remove("open"); state.focus = null;   // a turn id means something else in another session
+  state.live = true; state.playing = false; ctrl();
+  refresh(true);
+}
+// [ and ] walk every session in list order, folder after folder; drawSessions opens the folder they land in
+const cycle = d => { if (!SESS.length) return; const i = SESS.findIndex(s => s.id === sel); select(SESS[(i + d + SESS.length) % SESS.length].id); };
+$("prev").onclick = () => cycle(-1);
+$("next").onclick = () => cycle(1);
+// sessions panel: normal, wide or hidden, remembered; the map is redrawn for its new width
+let panel = localStorage.getItem("am-panel") || "normal";
+function setPanel(p) {
+  panel = p; localStorage.setItem("am-panel", p);
+  const layout = document.querySelector(".layout");
+  layout.classList.toggle("wide", p === "wide"); layout.classList.toggle("hidden", p === "hidden");
+  $("widepanel").textContent = p === "wide" ? "⇆" : "⇔";
+  $("widepanel").title = p === "wide" ? "Narrower list" : "Wider list with full titles";
+  if (M) refresh(true);
+}
+$("widepanel").onclick = () => setPanel(panel === "wide" ? "normal" : "wide");
+$("hidepanel").onclick = () => setPanel("hidden");
+$("showpanel").onclick = () => setPanel("normal");
+
+// ---- stage
+const stage = $("stage");
+const ROW_H = 52, TOP = 34, LABEL_W = 200, ORCH_W = 120;
+let G = null;   // geometry and elements
+function build() {
+  stage.replaceChildren(); G = null;
+  if (!M) return;
+  const ROWS = M.rows, ROWLABEL = M.ROWLABEL, fts = M.focus ? M.fTurns : null, focus = fts ? fts[0] : null, names = fts ? tList(fts) : "";
+  const LW = focus ? 0 : LABEL_W;   // one prompt: no row names, every column goes to the agents
+  // columns at least 160 px wide; a deeper chain than fits makes the map scroll sideways
+  const W = Math.max($("stage-wrap").clientWidth - 8, LW + ORCH_W + M.cols * 160 + 8);
+  const cw = (W - LW - ORCH_W - 8) / M.cols, cellW = cw - 18, cellH = ROW_H - 8;
+  const nRows = Math.max(ROWS.length, 3), H = TOP + nRows * ROW_H + 8;
+  stage.setAttribute("width", W); stage.setAttribute("height", H);
+  const cx = c => LW + ORCH_W + c * cw + 9, ry = r => TOP + ROWS.indexOf(r) * ROW_H + 4;
+  el("text", { x: cx(0), y: 18, "font-size": 11.5, class: "muted" }, stage).textContent = focus
+    ? `${names} only. Blue: the main agent. Orange: the agents it started, each to the right of the one that started it (or that it took over from).`
+    : "One row per prompt, oldest at the top. Blue: the main agent's turn. Orange, to its right: the subagents that turn started, in order.";
+  const gEdges = el("g", {}, stage), gRows = el("g", {}, stage), gCells = el("g", {}, stage), gDots = el("g", {}, stage);
+  // rows
+  const rowEls = {};
+  ROWS.forEach((r, i) => {
+    const y = ry(r);
+    const g = el("g", {}, gRows);
+    el("rect", { x: 0, y: y - 4, width: W, height: ROW_H, fill: i % 2 ? "var(--surface-1)" : "var(--surface-0)", opacity: 0.6 }, g);
+    rowEls[r] = g;
+    if (!LW) return;
+    const t = el("text", { x: 6, y: y + cellH / 2 + 4, "font-size": 12 }, g);
+    const [name, tag] = ROWLABEL[r];
+    t.textContent = name.length > 27 ? name.slice(0, 26) + "…" : name;
+    const tt = el("text", { x: LW - 8, y: y + cellH / 2 + 4, "font-size": 10.5, "text-anchor": "end", class: "muted" }, g); tt.textContent = tag;
+    el("title", {}, g).textContent = name;
+  });
+  // the session itself
+  const s = M.s || {};
+  // the session (all prompts), or you and your prompt (one prompt): sits level with the first row when focused, so the chain reads left to right
+  const oy = focus ? TOP + cellH / 2 + 4 : TOP + (nRows * ROW_H) / 2, ox = LW + ORCH_W / 2 - 6;
+  const orch = el("g", { class: "cell", tabindex: 0, role: "button", "aria-label": focus ? `Your prompts ${names}` : `Session in ${s.project || "unknown folder"}` }, gCells);
+  const ring = el("circle", { cx: ox, cy: oy, r: 40, fill: "none", stroke: "var(--orch)", "stroke-width": 2, opacity: 0 }, orch);
+  el("circle", { cx: ox, cy: oy, r: 30, fill: "var(--surface-1)", stroke: "var(--orch)", "stroke-width": 2 }, orch);
+  const proj = focus ? "You" : s.project || "?";
+  const o1 = el("text", { x: ox, y: oy - 2, "text-anchor": "middle", "font-size": 12, "font-weight": 600 }, orch); o1.textContent = proj.length > 9 ? proj.slice(0, 8) + "…" : proj;
+  const o2 = el("text", { x: ox, y: oy + 12, "text-anchor": "middle", "font-size": 9.5, class: "sec" }, orch); o2.textContent = focus ? (fts.length === 1 ? `prompt T${focus.n}` : `${fts.length} prompts`) : "Session";
+  const orchTip = () => focus ? fts.flatMap(f => [[`T${f.n}`, fmtDay(f.start)], ["", f.summary || "(not logged)"], ...qaLines(f.qa).map(([q, a]) => ["", `${q} ${a}`])])
+    : [[s.project || "Session", `(${STATUS_TEXT[s.status] || "unknown"})`], ["Folder:", s.cwd || "?"], ["Repo:", s.repo ? `${s.repo}${s.branch ? " · " + s.branch : ""}` : "not a git folder"], ["Started:", s.first ? fmtDay(s.first) : "?"], ["Session:", s.id || "?"], ["", "Each line from here is one of your prompts."]];
+  orch.addEventListener("pointermove", e => showTip(e, orchTip()));
+  orch.addEventListener("pointerleave", hideTip);
+  // cells
+  const cells = {};
+  for (const key in M.cellRuns) {
+    const [r, c] = key.split("|"), x = cx(+c), y = ry(r);
+    const g = el("g", { class: "cell", tabindex: 0, role: "button" }, gCells);
+    const box = el("rect", { class: "box", x, y, width: cellW, height: cellH, rx: 5, "stroke-width": 1.5 }, g);
+    const prog = el("rect", { x: x + 1, y: y + cellH - 4, width: 0, height: 3, rx: 1.5 }, g);
+    const flash = el("rect", { x: x - 3, y: y - 3, width: cellW + 6, height: cellH + 6, rx: 7, fill: "none", "stroke-width": 2, opacity: 0 }, g);
+    // three lines: the agent's name, its status, then its task or what it is doing now
+    const t1 = el("text", { x: x + 7, y: y + 13, "font-size": 11, "font-weight": 600 }, g);
+    const t2 = el("text", { x: x + 7, y: y + 26, "font-size": 10 }, g);
+    const t3 = el("text", { x: x + 7, y: y + 38, "font-size": 10, class: "sec" }, g);
+    const cell = { g, box, prog, flash, t1, t2, t3, runs: M.cellRuns[key], x, y, flashAt: -1e9, maxChars: Math.floor((cellW - 12) / 5.4), maxBold: Math.floor((cellW - 12) / 6.3) };
+    g.addEventListener("pointermove", e => showTip(e, cellTip(cell.runs)));
+    g.addEventListener("pointerleave", hideTip);
+    // a turn card shows that prompt alone; a subagent card lists its tool calls
+    const open = ev => { const a = current(cell.runs, state.t) || cell.runs[0]; a.kind === "turn" ? selectTurn(a.id, ev) : openDrawer([a], focus); };
+    g.addEventListener("click", open);
+    g.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
+    cells[key] = cell;
+  }
+  // a turn with more subagents than fit in its row: the rest are one click away, in that prompt's own view
+  for (const m of M.more) {
+    const x = cx(m.col), y = ry(m.row);
+    const g = el("g", { class: "cell", tabindex: 0, role: "button", "aria-label": `${m.n} more subagents of turn ${m.turn.n}` }, gCells);
+    el("rect", { x, y, width: cellW, height: cellH, rx: 5, fill: "none", stroke: "var(--check)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }, g);
+    el("text", { x: x + 7, y: y + 12, "font-size": 11, "font-weight": 600 }, g).textContent = `+${m.n} more`;
+    el("text", { x: x + 7, y: y + 24, "font-size": 10, class: "sec" }, g).textContent = clip(`Show T${m.turn.n} alone`, Math.floor((cellW - 12) / 5.4));
+    g.addEventListener("click", () => selectTurn(m.turn.id));
+    g.addEventListener("keydown", e => { if (e.key === "Enter") selectTurn(m.turn.id); });
+  }
+  // edges
+  const anchor = (a, side) => {
+    if (a === "orch") return [ox + 30, oy];
+    const c = cells[a.row + "|" + a.col];
+    return { right: [c.x + cellW, c.y + cellH / 2], left: [c.x, c.y + cellH / 2], top: [c.x + cellW / 2, c.y], bottom: [c.x + cellW / 2, c.y + cellH] }[side];
+  };
+  const edges = [];
+  for (const a of M.drawn) {
+    // from the card that started it; if that one isn't drawn (folded into "+N more"), from its turn
+    const drawnRun = id => { const r = id && M.BY[id]; return r && r.row != null && cells[r.row + "|" + r.col] && cells[r.row + "|" + r.col].runs[0] === r ? r : null; };
+    const p = (a.parent !== "orch" && drawnRun(a.parent)) || (a.kind === "sub" && drawnRun(a.turnId)) || "orch";
+    let d;
+    if (p === "orch") {
+      const [x1, y1] = anchor("orch"), [x2, y2] = anchor(a, "left");
+      d = `M${x1},${y1} C${x1 + 40},${y1} ${x2 - 50},${y2} ${x2},${y2}`;
+    } else if (p.col < a.col) {
+      const [x1, y1] = anchor(p, "right"), [x2, y2] = anchor(a, "left");
+      const lift = p.row === a.row && a.col - p.col > 1 ? -ROW_H * 0.55 : 0;   // hop over the card in between
+      d = `M${x1},${y1} C${x1 + 30},${y1 + lift} ${x2 - 30},${y2 + lift} ${x2},${y2}`;
+    } else {
+      const down = ROWS.indexOf(a.row) > ROWS.indexOf(p.row);
+      const [x1, y1] = anchor(p, down ? "bottom" : "top"), [x2, y2] = anchor(a, down ? "top" : "bottom");
+      d = `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`;
+    }
+    const path = el("path", { class: "edge", d, opacity: 0 }, gEdges);
+    edges.push({ a, p, path, len: path.getTotalLength(), dot: el("circle", { r: 4.5, opacity: 0, stroke: "var(--surface-1)", "stroke-width": 1.5 }, gDots) });
+  }
+  G = { cells, edges, rowEls, ring, cellW };
+  buildPrompts();
+  render(true);
+}
+// new events, same layout: swap in the fresh runs and flash cards that made new calls
+function rebind() {
+  const now = performance.now();
+  for (const k in G.cells) {
+    const c = G.cells[k], fresh = M.cellRuns[k] || c.runs;
+    if (fresh.some((r, i) => c.runs[i] && r.calls.length > c.runs[i].calls.length)) c.flashAt = now;
+    c.runs = fresh;
+  }
+  for (const e of G.edges) { e.a = M.BY[e.a.id] || e.a; if (e.p !== "orch") e.p = M.BY[e.p.id] || e.p; }
+}
+
+// ---- timeline (Gantt): one row per agent, a bar from when it started to when it finished.
+// Rows: each prompt's main agent (blue), then the agents it started (orange), indented under whoever started them.
+// The time axis is the map's: idle gaps shortened and hatched. Click a bar for its tool calls; a prompt's name shows it alone;
+// a subagent's name shows only its chain (who started it, what it started); a click on the chart moves the playhead there.
+let view = localStorage.getItem("am-view") === "gantt" ? "gantt" : "map", GT = null, chain = null;
+const gantt = $("gantt");
+function setView(v) {
+  view = v; localStorage.setItem("am-view", v);
+  $("vmap").setAttribute("aria-pressed", String(v === "map")); $("vgantt").setAttribute("aria-pressed", String(v === "gantt"));
+  stage.style.display = v === "map" ? "" : "none"; gantt.style.display = v === "gantt" ? "" : "none";   // SVG has no .hidden
+  hideTip(); buildGantt();
+}
+$("vmap").onclick = () => setView("map");
+$("vgantt").onclick = () => setView("gantt");
+function buildGantt() {
+  gantt.replaceChildren(); GT = null;
+  if (view !== "gantt" || !M || !SEGS) return;
+  const rows = [], MAX = 400;
+  const walk = (r, d) => { if (rows.length >= MAX) return; rows.push({ r, d }); for (const k of (M.kidsOf[r.id] || []).slice().sort((a, b) => a.start - b.start)) walk(k, d + 1); };
+  for (const tn of M.shown) walk(tn, 0);
+  if (!rows.length) return;
+  // a chain picked by its name: the agent, everyone above it and everything below it
+  const inChain = new Set();
+  if (chain && M.BY[chain]) {
+    for (let r = M.BY[chain]; r; r = M.BY[r.parent]) inChain.add(r.id);
+    const down = r => { inChain.add(r.id); for (const k of M.kidsOf[r.id] || []) down(k); }; down(M.BY[chain]);
+  } else chain = null;
+  const now = Date.now(), t0 = Math.min(...rows.map(x => x.r.start)), t1 = Math.max(...rows.map(x => x.r.end ?? now));
+  const pad = Math.max(2000, (rOf(t1) - rOf(t0)) * 0.02), r0 = rOf(t0) - pad, r1 = rOf(t1) + pad;
+  const LBL = 250, ROW = 22, TOP = 40, RIGHT = 150, W = Math.max(720, $("stage-wrap").clientWidth - 8), H = TOP + rows.length * ROW + 24;
+  const plotW = W - LBL - RIGHT, x = t => LBL + (rOf(t) - r0) / (r1 - r0) * plotW;
+  gantt.setAttribute("width", W); gantt.setAttribute("height", H);
+  el("text", { x: 6, y: 14, "font-size": 11.5, class: "muted" }, gantt).textContent = M.focus
+    ? `${tList(M.fTurns)}: when each agent started and finished. Click a bar for its tool calls, a name for its chain, the chart to move the playhead.`
+    : `Prompts T${M.shown[0].n}–T${M.shown[M.shown.length - 1].n} (pick prompts above for others): when each agent started and finished. Click a bar for its tool calls.`;
+  // axis: about one clock label per 110 px, on the shortened time
+  const gAxis = el("g", {}, gantt), long = t1 - t0 > 2 * 3600000, nTick = Math.max(2, Math.floor(plotW / 110));
+  for (let i = 0; i <= nTick; i++) {
+    const r = r0 + (r1 - r0) * i / nTick, px = LBL + plotW * i / nTick, t = tOf(Math.max(0, Math.min(R_END, r)));
+    el("line", { x1: px, x2: px, y1: TOP - 6, y2: H - 20, stroke: "var(--grid)" }, gAxis);
+    el("text", { x: px, y: TOP - 10, "font-size": 10.5, "text-anchor": "middle", class: "muted" }, gAxis).textContent = long ? fmtHM(t) : fmtHMS(t);
+  }
+  for (const g of SEGS.filter(g => g.gap && g.t1 > t0 && g.t0 < t1)) {
+    const a = x(Math.max(g.t0, t0)), b = x(Math.min(g.t1, t1));
+    el("rect", { x: a, y: TOP - 4, width: Math.max(1, b - a), height: H - TOP - 16, fill: "url(#hatch)", opacity: 0.5 }, gAxis);
+  }
+  // the chart itself: a click or drag moves the playhead there
+  const hit = el("rect", { x: LBL, y: TOP - 20, width: plotW, height: H - TOP, fill: "transparent", style: "cursor:crosshair" }, gantt);
+  const seekX = e => { const b = gantt.getBoundingClientRect(), px = (e.clientX - b.left) * (W / b.width); seekR(r0 + (px - LBL) / plotW * (r1 - r0)); };
+  let drag = false;
+  hit.addEventListener("pointerdown", e => { drag = true; hit.setPointerCapture(e.pointerId); seekX(e); });
+  hit.addEventListener("pointermove", e => { if (drag) seekX(e); });
+  hit.addEventListener("pointerup", () => drag = false);
+  const items = [];
+  rows.forEach(({ r, d }, i) => {
+    const y = TOP + i * ROW, main = r.kind === "turn", col = main ? "var(--search)" : "var(--check)", dim = chain && !inChain.has(r.id);
+    const g = el("g", { opacity: dim ? 0.25 : 1 }, gantt);
+    if (main && i) el("line", { x1: 0, x2: W, y1: y - 1, y2: y - 1, stroke: "var(--axis)" }, g);
+    else if (i % 2) el("rect", { x: 0, y, width: W, height: ROW, fill: "var(--surface-2)", opacity: 0.35, "pointer-events": "none" }, g);
+    // name: indented under the agent that started it
+    const lab = el("g", { class: "glabel", tabindex: 0, role: "button", "aria-label": main ? `Show T${r.n} alone` : `Show only ${r.label}'s chain` }, g);
+    el("rect", { x: 0, y, width: LBL - 4, height: ROW, fill: "transparent" }, lab);
+    el("circle", { cx: 10 + d * 12, cy: y + ROW / 2, r: 4, fill: col }, lab);
+    const name = main ? `T${r.n} · ${r.label.replace(/ · T\d+$/, "")}` : r.label;
+    el("text", { x: 18 + d * 12, y: y + ROW / 2 + 4, "font-size": 11.5, "font-weight": main ? 600 : 400 }, lab).textContent = clip(name, Math.floor((LBL - 26 - d * 12) / 6.2));
+    el("title", {}, lab).textContent = main ? `${name}: ${r.summary || "prompt not logged"}` : `${name}${r.desc ? ": " + r.desc : ""}`;
+    const pick = ev => { if (main) selectTurn(r.id, ev); else { chain = chain === r.id ? null : r.id; buildGantt(); } };
+    lab.addEventListener("click", pick); lab.addEventListener("keydown", ev => { if (ev.key === "Enter") pick(ev); });
+    // bar, from start to finish (or now), with a tick per tool call and a red top edge while it waited for you
+    const xs = x(r.start), xe = Math.max(xs + 2, x(r.end ?? now));
+    const bar = el("g", { class: "gbar", tabindex: 0, role: "button", "aria-label": `${r.label}: ${spanText(r)}` }, g);
+    el("rect", { class: "b", x: xs, y: y + 4, width: xe - xs, height: ROW - 8, rx: 3, fill: r.quiet ? "none" : col, stroke: col, "stroke-width": 1, opacity: 0.85, ...(r.quiet ? { "stroke-dasharray": "3 3" } : {}) }, bar);
+    if (r.end == null) el("rect", { x: xe - 3, y: y + 4, width: 3, height: ROW - 8, fill: "var(--text-primary)", opacity: 0.6 }, bar);   // still running
+    for (const [ct, , bad] of r.calls) { const cx_ = x(ct); el("line", { x1: cx_, x2: cx_, y1: y + 7, y2: y + ROW - 7, stroke: bad ? "var(--alert)" : "var(--surface-1)", "stroke-width": bad ? 2 : 1, opacity: bad ? 1 : 0.7 }, bar); }
+    for (const w of r.waits) { const a = x(w.t0), b = x(w.t1 ?? now); el("rect", { x: a, y: y + 2, width: Math.max(2, b - a), height: 3, fill: "var(--alert)" }, bar); }
+    const info = `${fmtDurS((r.end ?? now) - r.start)}${r.tok ? " · " + tokShort(r.tok) : ""}`;
+    const right = xe + 5 + info.length * 5.6 < W;
+    el("text", { x: right ? xe + 5 : xs - 5, y: y + ROW / 2 + 4, "font-size": 10.5, "text-anchor": right ? "start" : "end", class: "sec", "pointer-events": "none" }, g).textContent = info;
+    bar.addEventListener("pointermove", ev => showTip(ev, [[r.label, `(${kindText(r)})`], ["Started:", fmtDay(r.start)], [r.end == null ? "Running:" : r.quiet ? "Last seen:" : "Finished:", r.end == null ? `for ${fmtDurS(now - r.start)}` : `${fmtHMS(r.end)} (after ${fmtDurS(r.end - r.start)})`],
+      [String(r.calls.length), `tool call${r.calls.length === 1 ? "" : "s"}${r.failed ? `, ${r.failed} failed` : ""}`], ...(r.tok ? [["Tokens:", tokLong(r.tok)]] : []),
+      ...(main ? [["Prompt:", r.summary || "not logged"]] : [["From:", nameOf(r.parent)], ...(r.desc ? [["Task:", r.desc]] : [])]), ["", "Click for every tool call it made."]]));
+    bar.addEventListener("pointerleave", hideTip);
+    const open = () => openDrawer([r], true);
+    bar.addEventListener("click", open); bar.addEventListener("keydown", ev => { if (ev.key === "Enter") open(); });
+    items.push({ g: bar, start: r.start, dim });
+  });
+  if (rows.length >= MAX) el("text", { x: 6, y: H - 6, "font-size": 11, class: "muted" }, gantt).textContent = `Showing the first ${MAX} agents.`;
+  const headG = el("g", { "pointer-events": "none" }, gantt);
+  el("line", { x1: 0, x2: 0, y1: TOP - 20, y2: H - 20, stroke: "var(--text-primary)", "stroke-width": 1.5 }, headG);
+  const headT = el("text", { x: 4, y: H - 8, "font-size": 10.5, "font-weight": 600 }, headG);
+  GT = { x, items, headG, headT, t0: r0, t1: r1, lastS: null };
+  drawGanttHead();
+}
+// the playhead, and bars that haven't started yet at that moment faded
+function drawGanttHead() {
+  if (!GT) return;
+  const t = state.t, rr = rOf(t), inside = rr >= GT.t0 && rr <= GT.t1;
+  GT.headG.setAttribute("opacity", inside ? 1 : 0);
+  if (inside) { GT.headG.setAttribute("transform", `translate(${GT.x(t)},0)`); GT.headT.textContent = fmtHMS(t); }
+  const sec = Math.floor(t / 1000); if (sec === GT.lastS) return; GT.lastS = sec;
+  for (const it of GT.items) it.g.setAttribute("opacity", it.start <= t ? 1 : 0.3);
+}
+
+// ---- tooltip and drawer
+const tip = $("tip");
+function showTip(ev, lines) {
+  tip.replaceChildren();
+  for (const [b, r] of lines) { const d = h("div", {}, null, tip); if (b) h("b", {}, b + " ", d); if (r) d.append(r); }
+  tip.style.display = "block";
+  const w = tip.offsetWidth, ht = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + ht > innerHeight - 8) y = ev.clientY - ht - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => tip.style.display = "none";
+const current = (runs, t) => runs.filter(a => a.start <= t).pop();
+const lastCaption = (a, t) => { const n = bisect(a.callT, t); return n ? (a.calls[n - 1][2] ? "✕ " : "") + a.calls[n - 1][1] : a.kind === "turn" ? "Thinking" : "Reading its brief"; };
+const kindText = a => a.kind === "turn" ? "main agent" : `subagent${a.resumed ? ", resumed" : ""}`;
+const clip = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+// the card's name: turn number, a workflow agent's code ("E1", "C3"), or run number within its subagent type
+const about = a => a.kind === "turn" ? a.summary || "Already under way when logging began" : a.wf ? `${a.phase || "step"} · ${a.wf}` : a.desc || a.result || "Subagent run";
+function cellTip(runs) {
+  const t = state.t, a = current(runs, t) || runs[0];
+  const st = a.start > t ? "not started yet" : t < endOf(a) ? "running" : a.quiet ? "quiet" : "finished";
+  const lines = [[a.label, `(${kindText(a)})`], [cap1(st) + ":", a.start > t ? `starts ${fmtDay(a.start)}` : a.end != null && a.end <= t ? spanText(a) : `since ${fmtHMS(a.start)} · ${fmtDurS(t - a.start)}`]];
+  if (a.tok && a.end != null && a.end <= t) lines.push(["Tokens:", tokShort(a.tok)]);
+  if (a.start <= t) lines.push([`${bisect(a.callT, t)}`, `tool calls so far${a.failed ? ` (${a.failed} failed in total)` : ""}`], ["Latest:", lastCaption(a, t)]);
+  if (a.summary) lines.push(["Prompt:", a.summary]);
+  if (a.parts && a.parts.length) lines.push(["Then:", `woken ${a.parts.length} time${a.parts.length === 1 ? "" : "s"} without a new prompt; last: ${a.parts[a.parts.length - 1].text}`]);
+  if (a.desc) lines.push(["Task:", a.desc]);
+  if (a.kind === "sub") lines.push(["From:", nameOf(a.parent)]);
+  if (a.result && a.end <= t) lines.push(["Result:", a.result]);
+  const w = waitAt(a, t);
+  if (w) lines.unshift(["⚠ Needs your input:", `${w.text} (for ${fmtDur(t - w.t0)})`]);
+  return lines;
+}
+const drawer = $("drawer"), dbody = $("drawer-body");
+drawer.querySelector(".close").onclick = () => drawer.classList.remove("open");
+function openDrawer(runs, from) {
+  dbody.replaceChildren(); drawer.classList.remove("wide"); detail = null;
+  if (from) h("button", { class: "back" }, "← Back to the map", dbody).onclick = () => drawer.classList.remove("open");
+  const t = state.t;
+  for (const a of runs) {
+    h("h3", {}, a.label, dbody);
+    h("div", { class: "note" }, `${cap1(kindText(a))} · ${a.end == null ? "▶ running" : a.quiet ? "… quiet" : "✓ finished"}`, dbody);
+    const times = h("p", {}, null, dbody); h("b", {}, "Started ", times); times.append(fmtDay(a.start) + " · "); h("b", {}, a.end == null ? "Running for " : a.quiet ? "Last seen " : "Finished ", times);
+    times.append(a.end == null ? fmtDurS(Date.now() - a.start) : `${fmtHMS(a.end)} (after ${fmtDurS(a.end - a.start)})`);
+    if (a.tok) h("p", {}, `Tokens: ${tokLong(a.tok)}`, dbody);
+    const w = waitAt(a, t);
+    if (w) h("p", { class: "alert" }, `⚠ Needs your input since ${fmtHM(w.t0)}: ${w.text}`, dbody);
+    if (a.summary) h("p", {}, `Prompt: ${a.summary}`, dbody);
+    if (a.desc) h("p", {}, `Task: ${a.desc}`, dbody);
+    if (a.kind === "sub") h("p", {}, `Started by: ${nameOf(a.parent)}`, dbody);
+    const kids = M.subs.filter(b => b.parent === a.id).map(b => b.label);
+    if (kids.length) h("p", {}, `Started subagents: ${kids.join(", ")}`, dbody);
+    if (a.result) h("p", {}, `Result: ${a.result}`, dbody);
+    const n = bisect(a.callT, t);
+    h("h4", {}, a.start > t ? `Not started at ${fmtHM(t)}; all ${a.calls.length} tool calls:` : `Tool calls up to ${fmtHM(t)} (${n} of ${a.calls.length}):`, dbody);
+    const ol = h("ol", {}, null, dbody);
+    const list = a.start > t ? a.calls : a.calls.slice(0, n);
+    list.forEach(([ct, cap, bad]) => h("li", {}, `${fmtHMS(ct)} ${bad ? "✕ " : ""}${cap}`, ol));
+  }
+  drawer.classList.add("open");
+}
+// Esc closes the tool-call list first, then leaves the one-prompt view
+document.addEventListener("keydown", e => { if (e.key !== "Escape") return; if (drawer.classList.contains("open")) drawer.classList.remove("open"); else unfocus(); });
+
+// ---- prompt timeline: one mark per prompt (turn), evenly spaced so every prompt can be reached
+let P = null;
+const subsOf = tn => M.subs.filter(r => r.turnId === tn.id);
+function turnTip(tn) {
+  const k = subsOf(tn).length;
+  const tk = sumTok([tn, ...subsOf(tn)]);
+  return [[`T${tn.n}`, `${fmtDay(tn.start)} · ${tn.end != null ? fmtDur(tn.end - tn.start) : "still running"}`], ...(tk ? [["Tokens:", tokShort(tk) + (subsOf(tn).length ? ", with its subagents" : "")]] : []),
+    [String(tn.calls.length), `tool call${tn.calls.length === 1 ? "" : "s"}${tn.failed ? `, ${tn.failed} failed` : ""}${k ? ` · ${k} subagent${k === 1 ? "" : "s"} launched` : ""}`],
+    ["You asked:", tn.summary || "(not logged: it was under way before logging began)"], ...qaLines(tn.qa).map(([q, a]) => ["", `${q} ${a}`]),
+    ...(tn.parts.length ? [["Then:", `${tn.parts.length} more part${tn.parts.length === 1 ? "" : "s"} without a new prompt (reports, slash commands)`]] : []),
+    ["", "Click for the agents this prompt set off. Ctrl-click to add it, Shift-click for a range."]];
+}
+function buildPrompts() {
+  const svg = $("prompts"); svg.replaceChildren(); P = null;
+  if (!M || !M.turns.length) { $("pnote").textContent = "No prompts in this session yet."; svg.setAttribute("width", 10); return; }
+  const turns = M.turns, n = turns.length, avail = $("prompts-wrap").clientWidth || 600, step = Math.max(10, avail / n), H = 56, base = 38;
+  svg.setAttribute("width", Math.max(avail, step * n));
+  const maxC = Math.max(1, ...turns.map(x => x.calls.length)), labelEvery = Math.ceil(34 / step), marks = [];
+  turns.forEach((tn, i) => {
+    const x = i * step, bw = Math.max(5, Math.min(26, step - 3)), hgt = 5 + 25 * Math.log1p(tn.calls.length) / Math.log1p(maxC), k = subsOf(tn).length;
+    const g = el("g", { class: "pt", tabindex: 0, role: "listitem", "aria-label": `Turn ${tn.n}: ${tn.summary || "prompt not logged"}` }, svg);
+    el("rect", { x, y: 0, width: step, height: H, fill: "transparent" }, g);   // the whole column is the hover and click area
+    const bar = el("rect", { class: "bar", x: x + 1, y: base - hgt, width: bw, height: hgt, rx: 2, fill: "var(--search)", opacity: 0.5 }, g);
+    if (k) el("circle", { cx: x + 1 + bw / 2, cy: base - hgt - 5, r: Math.min(4.5, 2.5 + k / 2), fill: "var(--check)" }, g);
+    if (tn.failed) el("rect", { x: x + 1, y: base + 2, width: bw, height: 3, fill: "var(--alert)" }, g);
+    if (i % labelEvery === 0) el("text", { x: x + 1, y: H - 3, "font-size": 10, class: "muted" }, g).textContent = "T" + tn.n;
+    g.addEventListener("pointermove", e => showTip(e, turnTip(tn)));
+    g.addEventListener("pointerleave", hideTip);
+    g.addEventListener("click", e => selectTurn(tn.id, e));
+    g.addEventListener("keydown", e => { if (e.key === "Enter") selectTurn(tn.id, e); });
+    marks.push({ g, bar, n: tn.n, i: i + 1, id: tn.id });
+  });
+  P = { marks, cur: -1 };
+  $("pnote").textContent = `${n} prompt${n === 1 ? "" : "s"} you typed. Hover one to read it, click to see what it set off; Ctrl-click adds or removes one, Shift-click picks a range.`;
+}
+// show chosen prompts alone: the map, time bar and side panels cover only those turns and the agents they set off; their story below the map.
+// Click: just this one. Ctrl/Cmd-click: add or remove it. Shift-click: every prompt from the last one clicked to this one.
+let anchor = null;
+function selectTurn(id, ev) {
+  const tn = M.BY[id]; if (!tn) return;
+  const ids = M.turns.map(x => x.id), cur = state.focus || [];
+  let next = [id];
+  if (ev && (ev.ctrlKey || ev.metaKey)) next = cur.includes(id) ? cur.filter(x => x !== id) : cur.concat(id);
+  else if (ev && ev.shiftKey && anchor && ids.includes(anchor)) { const [a, b] = [ids.indexOf(anchor), ids.indexOf(id)].sort((x, y) => x - y); next = ids.slice(a, b + 1); }
+  anchor = id;
+  if (!next.length) { unfocus(); return; }
+  drawer.classList.remove("open");
+  if (!state.focus) state.before = { live: state.live, t: state.t };   // where ✕ All prompts takes you back to
+  state.focus = next; state.live = false; state.playing = false; ctrl();
+  state.t = Math.min(...next.map(x => M.BY[x].start)); refresh(true);
+  state.playing = true; ctrl();   // replay them: their agents start, work and hand over as they did
+  $("focusbar").scrollIntoView({ block: "nearest" });
+}
+// back to every prompt of the session, at the moment (or live) you were at before choosing prompts
+function unfocus() {
+  if (!state.focus) return;
+  const b = state.before || { live: true };
+  state.focus = null; state.before = null; anchor = null; state.playing = false;
+  state.live = b.live; if (!b.live) state.t = b.t;
+  ctrl(); refresh(true);
+}
+// the questions Claude asked and what you answered, as lines "? question" / "→ answer"
+const qaLines = qa => qa.flatMap(x => x.pairs ? x.pairs.map(([q, a]) => ["? " + q, "→ " + a]) : [["? " + x.q, x.no ? "✕ Not answered: " + x.no : x.done ? "→ answered (answer not logged: before answers were recorded)" : "… waiting for your answer"]]);
+function qaBox(qa, parent) {
+  if (!qa.length) return;
+  const box = h("div", { class: "qa" }, null, parent);
+  h("div", {}, qa.length === 1 ? "Claude asked you:" : `Claude asked you ${qa.length} times:`, box).style.fontWeight = 600;
+  for (const [q, a] of qaLines(qa)) { h("div", {}, q, box); h("div", { style: "padding-left:12px;color:var(--text-primary)" }, a, box); }
+}
+const stText = r => r.end == null ? `▶ working since ${fmtHMS(r.start)}` : r.quiet ? `… quiet since ${fmtHMS(r.end)}` : `✓ ${spanText(r)}`;
+const toolMix = r => { const m = {}; for (const [, cap] of r.calls) { const k = cap.split(":")[0]; m[k] = (m[k] || 0) + 1; } return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ×${v}`).join(", "); };
+let detail = null;   // the turn whose story is open: redrawn as new events arrive
+// one prompt's story, appended to the area under the map
+function openTurnDetails(tn, box) {
+  const dbody = h("section", { class: "tstory" }, null, box);
+  const kids = subsOf(tn), who = id => id === tn.id ? "the main agent" : nameOf(id), now = Date.now();
+  h("h3", {}, `T${tn.n}: what this prompt set off`, dbody);
+  h("div", { class: "note" }, `${fmtDay(tn.start)}${tn.end != null ? ` to ${fmtHM(tn.end)} (${fmtDur(tn.end - tn.start)})` : " · still running"} · ${calls(tn.calls.length + kids.reduce((n, r) => n + r.calls.length, 0))} in all · ${kids.length} subagent${kids.length === 1 ? "" : "s"}${sumTok([tn, ...kids]) ? ` · ${tokShort(sumTok([tn, ...kids]))}` : ""}`, dbody);
+  // you
+  const you = h("div", { class: "fcard you" }, null, dbody);
+  h("div", { class: "who" }, "You asked", you);
+  h("div", { class: "row", style: "color:var(--text-primary)" }, tn.summary || "Not logged: this turn was under way before logging began.", you);
+  qaBox(tn.qa, you);
+  // the turn went on without a new prompt from you: woken by a report, or a slash command you ran
+  if (tn.parts.length) {
+    const p = h("div", { class: "qa" }, null, you);
+    h("div", { style: "font-weight:600" }, `Then, without a new prompt from you (${tn.parts.length}):`, p);
+    for (const x of tn.parts) h("div", {}, `↩ ${fmtHM(x.t)} ${x.text}`, p);
+  }
+  h("div", { class: "down" }, null, dbody);
+  // an agent's card: blue for the main agent, orange for a subagent; its subagents hang under it
+  const card = (r, parent) => {
+    const w = r.end == null ? waitAt(r, now) : null;
+    const c = h("div", { class: `fcard ${r.kind === "turn" ? "main" : "sub"}${w ? " wait" : ""}` }, null, parent);
+    h("button", { class: "open", title: "Every tool call this agent made" }, "Tool calls", c).onclick = () => openDrawer([r], tn);
+    const head = h("div", { class: "who" }, null, c);
+    if (r.end == null) h("span", { class: "live", style: `color:${r.kind === "turn" ? "var(--search)" : "var(--check)"}`, "aria-hidden": "true" }, null, head);
+    head.append(r.kind === "turn" ? `${tn.label} · main agent` : r.label);
+    h("span", { class: "st" }, `${r.wf ? `${r.wf}, ${r.phase} · ` : ""}${stText(r)} · ${calls(r.calls.length)}${r.failed ? ` · ${r.failed} failed` : ""}`, head);
+    if (w) h("div", { class: "row alert" }, `⚠ Waiting for you since ${fmtHM(w.t0)}: ${w.text}`, c);
+    const row = (label, text) => { const d = h("div", { class: "row" }, null, c); h("b", {}, label, d); d.append(text); };
+    // a workflow agent gets its task from the workflow script; it hangs under the agent it started right after
+    if (r.kind === "sub") row(r.wf ? `Task from the ${r.wf} script${r.handoff ? `, started right after ${who(r.parent)} finished` : ""}: ` : `Input from ${who(r.parent)}: `, r.desc || "task not recorded");
+    if (r.end == null && r.calls.length) row("Now: ", lastCaption(r, now));
+    if (r.calls.length) row("Tools: ", toolMix(r));
+    if (r.tok) row("Tokens: ", tokLong(r.tok));
+    if (r.kind === "sub") row(r.end == null ? "Output: " : `Output, back to ${r.wf ? "the workflow" : who(r.parent)}: `, r.end == null ? "none yet, still working" : r.result || "not recorded");
+    if (r.kind === "sub") qaBox(r.qa, c);
+    const mine = M.subs.filter(x => x.parent === r.id);
+    if (mine.length) { const k = h("div", { class: "kids" }, null, parent); for (const x of mine) card(x, k); }
+  };
+  card(tn, dbody);
+  if (!kids.length) h("p", { class: "note" }, "No subagents: the main agent handled this prompt on its own.", dbody);
+  // every step in time order; the dot's colour says who did it
+  h("h4", {}, "Step by step", dbody);
+  const B = "var(--search)", O = "var(--check)";
+  const steps = tn.calls.map(([ct, cap, bad]) => [ct, `Main agent: ${bad ? "✕ " : ""}${cap}`, B]);
+  for (const x of tn.qa) for (const [q, a] of qaLines([x])) steps.push([x.t, `You were asked "${q.slice(2)}" ${a}`, "var(--alert)"]);
+  for (const x of tn.parts) steps.push([x.t, `↩ Main agent woken: ${x.text}`, "var(--text-muted)"]);
+  for (const r of kids) {
+    steps.push([r.start, `▶ ${r.label} starts${r.desc ? ": " + r.desc : ""}`, O]);
+    if (r.end != null && !r.quiet) steps.push([r.end, `✓ ${r.label} reports back to ${r.wf ? "the workflow" : who(r.parent)}`, O]);
+    for (const [ct, cap, bad] of r.calls) steps.push([ct, `${r.label}: ${bad ? "✕ " : ""}${cap}`, O]);
+  }
+  steps.sort((a, b) => a[0] - b[0]);
+  const ol = h("ol", { class: "steps" }, null, dbody);
+  steps.slice(-300).forEach(([ct, text, c]) => h("li", { style: "--c:" + c }, `${fmtHM(ct)} ${text}`, ol));
+  if (steps.length > 300) h("p", { class: "note" }, `Showing the last 300 of ${steps.length} steps.`, dbody);
+}
+// the story of the chosen prompts, kept current as events arrive; nothing chosen, no story
+function refreshDetail() {
+  const bar = $("focusbar"), ts = M && M.focus ? M.fTurns : null;
+  bar.hidden = !ts;
+  if (!ts) { if (detail) { $("story").replaceChildren(); detail = null; lastKey.detail = null; } return; }
+  $("focustext").textContent = ts.length === 1 ? `Showing T${ts[0].n} only: ${ts[0].summary || "prompt not logged"}` : `Showing ${ts.length} prompts: ${tList(ts)}`;
+  const key = ts.map(tn => [tn.id, tn.end, tn.calls.length, tn.qa, tn.parts.length, subsOf(tn).map(r => [r.id, r.end, r.calls.length, r.result, r.waits.length])]);
+  if (!changed("detail", key)) return;
+  const box = $("story"); box.replaceChildren(); detail = ts.map(x => x.id).join();
+  for (const tn of ts) openTurnDetails(tn, box);
+}
+
+// ---- redraw a side panel only when its content changes
+const lastKey = {};
+const changed = (name, v) => { const k = JSON.stringify(v); if (lastKey[name] === k) return false; lastKey[name] = k; return true; };
+
+// ---- playback state: live follows now; Play replays from the scrubber position and rejoins live at the end
+const state = { r: 0, t: Date.now(), live: true, playing: false, speed: 4, trails: true, lastEv: -1, prevT: Date.now(), toolN: {} };
+const travelMs = () => state.live ? 900 : 0.9 * state.speed * 60000;   // a dot takes 0.9 s on screen
+function seekR(r) { state.live = false; state.playing = false; ctrl(); state.r = Math.max(0, Math.min(R_END, r)); state.prevT = tOf(state.r); render(true); }
+
+function render(jump) {
+  if (!SEGS) return;
+  const t = tOf(state.r); state.t = t;
+  const now = performance.now();
+  $("clock").textContent = fmtDay(t);
+  drawMiniHead(); drawGanttHead();
+  if (!G || !M) { drawOverlay(null); return; }
+  if (P) {   // prompt timeline: the turn under the playhead is solid, the clicked one outlined; in focus the others fade
+    const cur = bisect(M.turnStarts, t);
+    if (cur !== P.cur || P.focus !== String(M.focus)) {
+      for (const m of P.marks) { m.bar.setAttribute("opacity", M.focus ? (M.focus.includes(m.id) ? 1 : 0.22) : m.i === cur ? 1 : 0.5); m.g.classList.toggle("sel", !!M.focus && M.focus.includes(m.id)); }
+      P.cur = cur; P.focus = String(M.focus);
+    }
+  }
+  // the playhead left the turns on the map (replay, scrubbing, back to live): redraw the map around it
+  if (M.turns.length && !M.focus) { const n = state.live ? M.turns.length : Math.max(1, bisect(M.turnStarts, t)); if (n < M.win[0] || n > M.win[1]) rewindow = true; }
+  // calls since last frame -> flashes
+  if (!jump) for (const k in G.cells) { const c = G.cells[k]; for (const a of c.runs) { const i0 = bisect(a.callT, state.prevT), i1 = bisect(a.callT, t); if (i1 > i0) c.flashAt = now; } }
+  state.prevT = t;
+  for (const k in G.cells) {
+    const c = G.cells[k], a = current(c.runs, t), w = a && t < endOf(a) ? waitAt(a, t) : null;
+    const col = w ? "var(--alert)" : a ? colOf(a) : "var(--axis)";
+    if (w && !reduceMotion && now - c.flashAt > 1400) c.flashAt = now;   // a waiting card keeps blinking
+    const fl = Math.max(0, 1 - (now - c.flashAt) / 380);
+    c.flash.setAttribute("stroke", col); c.flash.setAttribute("opacity", fl.toFixed(2));
+    if (!a) {
+      c.box.setAttribute("fill", "none"); c.box.setAttribute("stroke", "var(--axis)"); c.box.setAttribute("stroke-dasharray", "3 4"); c.box.setAttribute("opacity", 0.55);
+      c.prog.setAttribute("width", 0); c.t1.textContent = ""; c.t2.textContent = ""; c.t3.textContent = "";
+      c.g.setAttribute("aria-label", `${c.runs[0].label}, not started`); continue;
+    }
+    c.box.removeAttribute("stroke-dasharray"); c.box.setAttribute("opacity", 1);
+    const resumed = a.resumed ? "↻ " : "";
+    const n = bisect(a.callT, t);
+    if (t < endOf(a)) {
+      c.box.setAttribute("fill", "var(--surface-1)"); c.box.setAttribute("stroke", col); c.box.setAttribute("stroke-width", 2);
+      // finished runs replayed: progress to their end; open runs: a sweep each minute shows they are alive
+      const f = a.end != null ? (t - a.start) / Math.max(1, a.end - a.start) : ((t - a.start) % 60000) / 60000;
+      c.prog.setAttribute("fill", col); c.prog.setAttribute("width", Math.max(2, (G.cellW - 2) * f));
+      c.t1.textContent = clip(a.label, c.maxBold);
+      c.t2.textContent = clip(w ? `⚠ Needs you · ${fmtDur(t - w.t0)}` : `${resumed}▶ ${fmtHM(a.start)}, ${fmtDur(t - a.start)} · ${n} tool${n === 1 ? "" : "s"}`, c.maxChars);
+      // while running: what it does right now; before its first tool call, the task it was given
+      c.t3.textContent = clip(w ? w.text : !n && a.kind === "sub" && a.desc && !a.wf ? a.desc : lastCaption(a, t), c.maxChars);
+    } else {
+      c.box.setAttribute("fill", a.quiet ? "none" : "var(--surface-2)"); c.box.setAttribute("stroke", col); c.box.setAttribute("stroke-width", 1);
+      if (a.quiet) c.box.setAttribute("stroke-dasharray", "3 4");
+      c.prog.setAttribute("width", 0);
+      const nc = a.calls.length;
+      c.t1.textContent = clip(a.label, c.maxBold);
+      c.t2.textContent = clip(a.quiet ? `… quiet since ${fmtHM(a.end)}` : `${resumed}✓ ${fmtRange(a.start, a.end)} · ${nc} tool${nc === 1 ? "" : "s"}${a.failed ? ` · ${a.failed} ✕` : ""}`, c.maxChars);
+      c.t3.textContent = clip(about(a), c.maxChars);   // once done: what it was for
+    }
+    c.g.setAttribute("aria-label", `${a.label}: ${c.t2.textContent}. ${c.t3.textContent}`);
+  }
+  const running = M.scope.filter(a => a.start <= t && t < endOf(a));
+  for (const r in G.rowEls) G.rowEls[r].setAttribute("opacity", M.firstStart[r] <= t ? 1 : 0.4);
+  // edges and travelling dots
+  let launching = false;
+  for (const e of G.edges) {
+    const a = e.a, col = colOf(a), live = a.start <= t && t < endOf(a);
+    e.path.setAttribute("stroke", col);
+    if (a.start > t) { e.path.setAttribute("opacity", 0); e.dot.setAttribute("opacity", 0); continue; }
+    e.path.setAttribute("opacity", live ? 0.85 : state.trails ? (M.focus ? 0.35 : 0.13) : 0);   // one prompt: its finished links stay readable
+    e.path.setAttribute("stroke-width", live ? 2 : 1.2);
+    e.path.classList.toggle("flow", live);
+    const f = (t - a.start) / travelMs();
+    if (f >= 0 && f <= 1) {
+      const p = e.path.getPointAtLength(e.len * f);
+      e.dot.setAttribute("cx", p.x); e.dot.setAttribute("cy", p.y); e.dot.setAttribute("fill", col); e.dot.setAttribute("opacity", 1);
+      if (e.p === "orch") launching = true;
+    } else e.dot.setAttribute("opacity", 0);
+  }
+  G.ring.setAttribute("opacity", launching ? 0.6 : 0);
+  // side panels
+  const turnsSoFar = M.scope.filter(a => a.kind === "turn" && a.start <= t).length, subsSoFar = M.scope.filter(a => a.kind === "sub" && a.start <= t).length;
+  const nCalls = bisect(M.allCalls, t);
+  const failed = Object.values(M.tools).reduce((n, x) => n + bisect(x.fts, t), 0);
+  const doneSoFar = M.scope.filter(a => a.end != null && a.end <= t), tk = sumTok(doneSoFar) || { i: 0, o: 0, cr: 0, cw: 0 };
+  const busy = M.scope.reduce((n, a) => n + Math.max(0, Math.min(t, a.end ?? t) - a.start), 0);
+  const stats = [[running.length, "running now"], [turnsSoFar, "turns"], [subsSoFar, "subagents"], [nCalls.toLocaleString(), "tool calls"], [failed, "failed calls"], [SESS.filter(s => s.input).length, "sessions need you"],
+    [fmtTok(tk.i + tk.cr + tk.cw), "tokens in"], [fmtTok(tk.o), "tokens out"], [fmtDurS(busy), "agent time"]];
+  if (changed("stats", stats)) {
+    const sb = $("stats"); sb.replaceChildren();
+    for (const [v, l] of stats) { const d = h("div", {}, null, sb); h("b", {}, String(v), d); h("span", {}, l, d); }
+  }
+  const s = M.s || {};
+  const gap = !state.live && segAtR(state.r).gap ? SEGS.find(g => g.gap && t >= g.t0 && t <= g.t1) : null;
+  const nowLines = running.map(a => { const w = waitAt(a, t); return [a.label, w ? `⚠ needs you: ${w.text}` : lastCaption(a, t), !!w]; });
+  const ph = $("phase");
+  if (changed("phase", [s.id, s.status, s.repo, s.branch, gap && gap.t0, nowLines, s.input && Math.floor((Date.now() - s.input.since) / 60000)])) {
+    ph.replaceChildren();
+    const top = h("div", { style: "margin-bottom:4px" }, null, ph); h("b", {}, (s.project || "?") + " ", top); top.append(`— ${STATUS_TEXT[s.status] || ""}`);
+    if (s.input && state.live) h("div", { class: "alert", style: "margin-bottom:4px" }, `⚠ ${s.input.text} (waiting ${fmtDur(Date.now() - s.input.since)}). Switch to that session in Claude Code to answer.`, ph);
+    h("div", { class: "note" }, s.cwd || "", ph);
+    if (s.repo) h("div", { class: "note", style: "margin-bottom:6px" }, `Repo ${s.repo}${s.branch ? " · branch " + s.branch : ""}`, ph);
+    if (gap) { const d = h("div", {}, null, ph); h("b", {}, "Idle", d); d.append(` — nothing ran for ${fmtDur(gap.t1 - gap.t0)}.`); }
+    else if (!nowLines.length) { const d = h("div", {}, null, ph); h("b", {}, "Nothing running", d); d.append(s.status === "idle" ? " — the last turn finished; the session waits for your next prompt." : "."); }
+    for (const [name, what, waiting] of nowLines) { const d = h("div", { style: "margin-bottom:4px", class: waiting ? "alert" : "" }, null, ph); h("b", {}, name + " ", d); d.append(what); }
+  }
+  const counts = Object.entries(M.tools).map(([tool, x]) => [tool, bisect(x.ts, t), bisect(x.fts, t)]).filter(x => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if (changed("lb", [s.id, M.focus, counts])) {
+    const tb = $("lb"); tb.replaceChildren();
+    const hr = h("tr", {}, null, tb); ["#", "Tool", "Calls", "Failed"].forEach((x, i) => h("td", { class: i > 1 ? "n" : "", style: "color:var(--text-secondary);font-weight:600" }, x, hr));
+    counts.forEach(([tool, n, f], i) => {
+      const grew = !jump && state.toolN[tool] != null && n > state.toolN[tool];
+      const tr = h("tr", { class: grew ? "fresh" : "" }, null, tb); h("td", {}, i + 1, tr); h("td", {}, tool, tr); h("td", { class: "n" }, n.toLocaleString(), tr); h("td", { class: "n" }, f || "–", tr);
+    });
+    if (!counts.length) { const tr = h("tr", {}, null, tb); h("td", { colspan: 4, class: "note" }, "No tool calls yet.", tr); }
+    state.toolN = Object.fromEntries(counts.map(([tool, n]) => [tool, n]));
+    $("lbnote").textContent = `${Object.keys(M.tools).length} different tools in ${M.focus ? `${tList(M.fTurns)} and their agents` : "this session"}. Failed includes interrupted calls.`;
+  }
+  const EV_T = M.events.map(e => e.t), ei = bisect(EV_T, t);
+  if (changed("feed", [s.id, M.focus, ei, M.events.length])) {
+    const grew = ei > state.lastEv && state.lastEv >= 0 && !jump ? ei - state.lastEv : 0;
+    state.lastEv = ei;
+    const feed = $("feed"); feed.replaceChildren();
+    const last = M.events[ei - 1];
+    $("ticker").textContent = `${s.project || "?"}${s.repo && s.repo !== s.project ? ` (${s.repo})` : ""}  ·  ${running.length} running  ·  ` + (last ? `${fmtHM(last.t)} ${last.text}` : "No events yet.");
+    M.events.slice(Math.max(0, ei - 40), ei).reverse().forEach((e, i) => { const d = h("div", { class: i < grew ? "fresh" : "" }, null, feed); h("span", { class: "t" }, fmtHM(e.t), d); h("span", {}, e.text, d); });
+  }
+  drawOverlay(gap);
+}
+
+// ---- overlay (no events yet, idle gap while replaying)
+const overlay = $("overlay");
+let overlayKey = "";
+function drawOverlay(gap) {
+  if (locked) return;   // the "needs the link" message stays
+  const key = !M || !M.drawn.length ? "empty" + SESS.length : gap ? "gap" + gap.t0 : "";
+  if (key === overlayKey) return;
+  overlayKey = key; overlay.replaceChildren();
+  if (!key) return;
+  const box = h("div", {}, null, overlay);
+  if (key.startsWith("empty")) {
+    h("h2", {}, SESS.length ? "No agent runs in this session yet" : "Waiting for agent events", box);
+    h("p", {}, "Start or continue any Claude Code session on this computer. Each prompt, tool call and subagent shows up here within a second. Sessions that were already open start logging on their next prompt, or after a restart if they don't.", box);
+  } else {
+    h("h2", {}, `Idle for ${fmtDur(gap.t1 - gap.t0)}`, box); h("p", {}, "No agent was running in this session.", box);
+    const b = h("button", { class: "primary" }, "● Back to live", box); b.onclick = goLive;
+  }
+}
+
+// ---- mini timeline (scrubber): how many runs at once, your prompts, and the playhead
+const mini = $("mini");
+let MW = 0, head = null;
+function buildMini() {
+  mini.replaceChildren(); head = null;
+  if (!SEGS) return;
+  MW = mini.clientWidth || 400;
+  const xr = r => r / R_END * MW, H = 46, base = 34;
+  const runs = M ? M.scope : [];
+  const steps = 300, conc = [];
+  for (let i = 0; i <= steps; i++) { const t = tOf(R_END * i / steps); conc.push(runs.filter(a => a.start <= t && t < (a.end ?? Infinity)).length); }
+  const mx = Math.max(1, ...conc);
+  let d = `M0,${base}`;
+  conc.forEach((c, i) => d += `L${xr(R_END * i / steps)},${base - c / mx * 22}`);
+  el("path", { d: d + `L${MW},${base}Z`, fill: "var(--report)", opacity: 0.45 }, mini);
+  for (const s of SEGS.filter(s => s.gap)) el("rect", { x: xr(s.r0), y: 6, width: xr(s.r1) - xr(s.r0), height: base - 6, fill: "url(#hatch)", opacity: 0.8 }, mini);
+  if (M) for (const r of M.scope) for (const c of r.calls) if (c[2]) el("line", { x1: xr(rOf(c[0])), x2: xr(rOf(c[0])), y1: base + 1, y2: base + 5, stroke: "var(--check)", "stroke-width": 1.2 }, mini);
+  if (M) for (const r of M.scope) for (const w of r.waits) {   // time spent waiting for you: a red band along the top
+    const x0 = xr(rOf(w.t0)), x1 = xr(rOf(w.t1 ?? Date.now()));
+    el("rect", { x: x0, y: 0, width: Math.max(2, x1 - x0), height: 4, fill: "var(--alert)" }, mini);
+  }
+  let lastX = -99;
+  if (M) for (const tn of M.focus ? M.fTurns : M.turns) {
+    const x = xr(rOf(tn.start));
+    el("line", { x1: x, x2: x, y1: 4, y2: base, stroke: "var(--text-muted)", "stroke-width": 1 }, mini);
+    if (x - lastX >= 18) { const tx = el("text", { x: x + 2, y: H - 2, "font-size": 10, class: "muted" }, mini); tx.textContent = "T" + tn.n; lastX = x; }
+  }
+  el("line", { x1: 0, x2: MW, y1: base, y2: base, stroke: "var(--axis)" }, mini);
+  head = el("g", {}, mini);
+  el("line", { x1: 0, x2: 0, y1: 2, y2: base + 6, stroke: "var(--text-primary)", "stroke-width": 2 }, head);
+  el("circle", { cx: 0, cy: 3, r: 4, fill: "var(--text-primary)" }, head);
+  drawMiniHead();
+}
+function drawMiniHead() { if (head) head.setAttribute("transform", `translate(${state.r / R_END * MW},0)`); mini.setAttribute("aria-valuetext", fmtDay(state.t)); }
+let dragging = false;
+const seekFromEvent = e => { const b = mini.getBoundingClientRect(); seekR((e.clientX - b.left) / b.width * R_END); };
+mini.addEventListener("pointerdown", e => { dragging = true; mini.setPointerCapture(e.pointerId); seekFromEvent(e); });
+mini.addEventListener("pointermove", e => { if (dragging) seekFromEvent(e); });
+mini.addEventListener("pointerup", () => dragging = false);
+mini.addEventListener("keydown", e => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); seekR(state.r + (e.key === "ArrowRight" ? 1 : -1) * 10 * 60000); } });
+
+// ---- desktop alerts when a session starts needing you (the browser's own notifications; nothing leaves this computer)
+let alertsOn = localStorage.getItem("am-alerts") === "on" && "Notification" in window && Notification.permission === "granted";
+let seenWaits = null;   // waits already known; null until the first load, so waits from before the page opened don't alert
+function alertBtn() { const b = $("alerts"); b.textContent = alertsOn ? "🔔 Alerts on" : "🔕 Alerts off"; b.classList.toggle("on", alertsOn); }
+$("alerts").onclick = async () => {
+  if (!("Notification" in window)) { $("alerts").title = "This browser can't show notifications."; return; }
+  if (!alertsOn && Notification.permission !== "granted") await Notification.requestPermission();
+  if (Notification.permission === "denied") $("alerts").title = "Notifications are blocked for this page. Allow them in the browser's site settings.";
+  alertsOn = !alertsOn && Notification.permission === "granted";
+  localStorage.setItem("am-alerts", alertsOn ? "on" : "off"); alertBtn();
+};
+function checkAlerts() {
+  const waiting = SESS.filter(s => s.input), keys = new Set(waiting.map(s => s.id + "@" + s.input.since));
+  document.title = waiting.length ? `(${waiting.length}) ⚠ Agents, live` : "Agents, live";
+  // only when you're looking elsewhere: on this page the list and the tab title already show it
+  if (seenWaits && alertsOn && (document.hidden || !document.hasFocus())) for (const s of waiting) {
+    if (seenWaits.has(s.id + "@" + s.input.since)) continue;
+    const n = new Notification(`${s.project || "A session"} needs your input`, { body: s.input.text, tag: s.id });
+    n.onclick = () => { window.focus(); select(s.id); n.close(); };
+  }
+  seenWaits = keys;
+}
+alertBtn();
+
+// ---- export: this page plus this session's events in one HTML file that replays offline, nothing to install.
+// Picked prompts: only their events; the other prompts stay as placeholders so the numbers (T12…) match.
+$("export").onclick = async () => {
+  if (!M || !sel) return;
+  const fts = M.focus ? M.fTurns : null, what = fts ? `prompt${fts.length === 1 ? "" : "s"} ${tList(fts)}` : "this whole session";
+  if (!confirm(`Save ${what} as one HTML file?\n\nIt contains your prompts, Claude's questions and your answers, the tool summaries and the agents' reports (secrets that look like secrets are masked). Anyone you send it to can read them.`)) return;
+  let src;
+  try { src = await (await fetch("/", { cache: "no-store" })).text(); } catch { $("ticker").textContent = "Export failed: cannot reach the monitor server."; return; }
+  const inSpan = t => !fts || M.spans.some(([a, b]) => t >= a - 1 && t <= b + 1);
+  const ev = [];
+  for (const { _sid, ...e } of EV) {
+    if (_sid !== sel) continue;
+    if (inSpan(T(e)) || e.event === "SessionStart") ev.push(e);
+    else if (e.event === "UserPromptSubmit" && !notTyped(e.summary)) ev.push({ ...e, summary: "(not included in this export)" }, { ...e, event: "Stop", summary: null, status: "idle" });
+  }
+  const data = { ev, desk: { sessions: DESK.sessions.filter(d => d.id === sel) }, sel, focus: state.focus, at: Math.max(...ev.map(T)) + 60000, made: Date.now() };
+  // "<" escaped so no text in the data can close the script tag (and this line writes the tag as <\/script> for the same reason)
+  const out = src.replace("<script>", () => `<script>window.EXPORT = ${JSON.stringify(data).replace(/</g, "\\u003c")};<\/script>\n<script>`);
+  const title = ((M.s && M.s.title) || "session").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "session";
+  const a = h("a", { href: URL.createObjectURL(new Blob([out], { type: "text/html" })), download: `agent-replay-${title}${fts ? "-" + fts.map(x => "T" + x.n).join("") .slice(0, 30) : ""}-${new Date().toISOString().slice(0, 10)}.html` });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  $("ticker").textContent = `Saved ${what} to your downloads.`;
+};
+
+// ---- re-import: read Claude Code's transcripts again (workflow agents' names, older sessions, token counts), then reload
+$("reimport").onclick = async () => {
+  const b = $("reimport"); if (b.disabled) return;
+  b.disabled = true; b.textContent = "⟳ Importing…";
+  try {
+    const r = await fetch(api("/api/reimport"), { method: "POST", headers: { "x-agent-monitor": "reimport" } });
+    const msg = await r.text();
+    $("ticker").textContent = r.ok ? msg : `Re-import failed: ${msg}`;
+    if (r.ok) await loadAll();
+  } catch { $("ticker").textContent = "Re-import failed: cannot reach the monitor server."; }
+  b.disabled = false; b.textContent = "⟳ Re-import";
+};
+
+// ---- search: your own prompts in every listed session; pick one to show it alone
+const qBox = $("q"), hits = $("hits");
+let qTimer = null;
+function search() {
+  const q = qBox.value.trim().toLowerCase(); hits.replaceChildren();
+  if (q.length < 2) return;
+  const shown = new Map(SESS.map(s => [s.id, s]));
+  const found = EV.filter(e => e.event === "UserPromptSubmit" && e.summary && shown.has(e._sid) && !notTyped(e.summary) && e.summary.toLowerCase().includes(q)).reverse();
+  if (!found.length) { h("p", { class: "note" }, "No prompt you typed contains that.", hits); return; }
+  for (const e of found.slice(0, 40)) {
+    const s = shown.get(e._sid), b = h("button", { role: "option" }, null, hits);
+    h("div", { class: "hm" }, `${s.title || s.project || "session"} · ${fmtDay(T(e))}`, b);
+    // the match highlighted, with some words around it; text nodes only
+    const txt = e.summary, i = txt.toLowerCase().indexOf(q), from = Math.max(0, i - 60), d = h("div", {}, from ? "…" : "", b);
+    d.append(txt.slice(from, i)); h("mark", {}, txt.slice(i, i + q.length), d); d.append(txt.slice(i + q.length, i + q.length + 140));
+    b.onclick = () => { hits.replaceChildren(); jumpTo(e._sid, T(e)); };
+  }
+  if (found.length > 40) h("p", { class: "note" }, `Showing the newest 40 of ${found.length}.`, hits);
+}
+function jumpTo(sid, t) {
+  select(sid);
+  const tn = M && M.turns.find(x => x.start === t);
+  if (tn) selectTurn(tn.id);
+}
+qBox.addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(search, 150); });
+qBox.addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.stopPropagation(); if (hits.childElementCount) hits.replaceChildren(); else qBox.value = ""; }
+  if (e.key === "Enter") { e.preventDefault(); const b = hits.querySelector("button"); if (b) b.click(); }
+  if (e.key === "ArrowDown") { e.preventDefault(); const b = hits.querySelector("button"); if (b) b.focus(); }
+});
+hits.addEventListener("keydown", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const n = e.key === "ArrowDown" ? b.nextElementSibling : b.previousElementSibling; (n && n.tagName === "BUTTON" ? n : e.key === "ArrowUp" ? qBox : b).focus(); }
+  if (e.key === "Escape") { e.stopPropagation(); hits.replaceChildren(); qBox.focus(); }
+});
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".search")) hits.replaceChildren(); });
+
+// ---- loading and live updates
+let dirty = false, broke = false, rewindow = false;
+function refresh(force) {
+  buildSessions(); drawSessions(); checkAlerts();
+  const old = M, keepT = state.t;
+  if (fitColumns()) force = true;
+  M = sel ? buildModel(sel, state.live ? null : keepT, state.focus) : null;
+  computeTime();
+  state.r = state.live ? R_END : Math.min(R_END, rOf(keepT));
+  if (force || !old || !G || !M || old.key !== M.key) { build(); buildMini(); } else rebind();
+  buildGantt();
+  refreshDetail();
+}
+async function loadDesktop() {   // titles and groups change in the app (renames, new sessions): re-read every few seconds
+  if (EXPORT) return false;
+  try { const d = await (await fetch(api("/api/desktop"), { cache: "no-store" })).json(); if (JSON.stringify(d) !== JSON.stringify(DESK)) { DESK = d; return true; } } catch {}
+  return false;
+}
+async function loadAll() {
+  if (EXPORT) {   // offline: the events are in the file; open on the prompts that were picked, replaying
+    EV = EXPORT.ev.slice().sort(byTs); DESK = EXPORT.desk; sel = EXPORT.sel; refresh(true);
+    if (EXPORT.focus && M) { const ids = EXPORT.focus.filter(id => M.BY[id]); if (ids.length) { selectTurn(ids[0]); if (ids.length > 1) { state.focus = ids; refresh(true); } } }
+    return;
+  }
+  let r;
+  try { r = await fetch(api("/api/events"), { cache: "no-store" }); }
+  catch { $("ticker").textContent = "Cannot reach the monitor server. Is it still running?"; return; }
+  if (r.status === 401) { noKey(); return; }
+  try { [EV] = await Promise.all([r.json(), loadDesktop()]); EV.sort(byTs); }
+  catch { $("ticker").textContent = "The monitor server answered with an error. Its terminal output says why."; return; }
+  refresh(true);
+}
+setInterval(async () => { if (await loadDesktop()) dirty = true; }, 10000);
+function connect() {
+  const es = new EventSource(api("/api/stream"));
+  es.onmessage = m => {
+    try { const e = JSON.parse(m.data); const prev = EV[EV.length - 1]; EV.push(e); if (prev && T(e) < T(prev)) EV.sort(byTs); dirty = true; } catch {}
+  };
+  es.onerror = () => { broke = true; $("ticker").textContent = "Connection to the monitor server lost, retrying…"; };
+  es.onopen = () => { if (broke) { broke = false; loadAll(); } };   // refetch what was missed while disconnected
+}
+setInterval(() => { if (dirty) { dirty = false; refresh(false); } }, 400);
+setInterval(() => { dirty = true; }, 5000);   // statuses age (working -> quiet) and "min ago" labels move on
+
+// ---- loop and controls
+let lastFrame = null, lastTime = 0, lastMini = 0;
+function frame(ts) {
+  if (state.live) {
+    if (ts - lastTime > 1000) { computeTime(); lastTime = ts; if (ts - lastMini > 10000) { buildMini(); lastMini = ts; } }
+    state.r = R_END;
+  } else if (state.playing) {
+    if (lastFrame != null) state.r += (ts - lastFrame) / 1000 * state.speed * 60000;
+    if (state.r >= R_END) { if (M && M.focus) { state.r = R_END; state.playing = false; ctrl(); } else goLive(); }   // a prompt's replay stops at its end
+  }
+  lastFrame = ts;
+  if (rewindow) { rewindow = false; refresh(true); }
+  render(false);
+  requestAnimationFrame(frame);
+}
+function ctrl() {
+  $("play").textContent = state.live || state.playing ? "❚❚ Pause" : "▶ Play";
+  $("live").classList.toggle("on", state.live);
+}
+function goLive() { state.live = true; state.playing = false; state.selTurn = null; ctrl(); overlayKey = "?"; if (state.focus) { state.focus = state.before = null; refresh(true); } }
+function toggle() {
+  if (state.live || state.playing) { state.live = false; state.playing = false; }
+  else { if (M && M.focus && state.r >= R_END) state.r = 0; state.playing = true; }   // Play at a prompt's end replays it
+  ctrl(); overlayKey = "?";
+}
+$("play").onclick = toggle;
+$("live").onclick = goLive;
+$("unfocus").onclick = unfocus;
+$("restart").onclick = () => seekR(0);
+$("speed").onchange = e => state.speed = +e.target.value;
+$("trails").onchange = e => state.trails = e.target.checked;
+$("theme").onclick = () => {
+  const dark = getComputedStyle(document.querySelector(".viz-root")).colorScheme === "dark";
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+};
+document.addEventListener("keydown", e => {
+  if (e.target.closest?.("select, input")) return;
+  if (e.key === " " && !e.target.closest?.("button")) { e.preventDefault(); toggle(); }
+  if (e.key === "Home") seekR(0);
+  if (e.key === "l" || e.key === "L") goLive();
+  if (e.key === "[") cycle(-1);
+  if (e.key === "]") cycle(1);
+});
+addEventListener("resize", () => { clearTimeout(window._r); window._r = setTimeout(() => refresh(true), 150); });
+// the map's column also narrows without a window resize (the page's scrollbar appearing, the sessions panel): redraw to fit
+let wrapW = 0;
+new ResizeObserver(() => { const w = $("stage-wrap").clientWidth; if (Math.abs(w - wrapW) < 3) return; wrapW = w; clearTimeout(window._r); window._r = setTimeout(() => { if (M) refresh(true); }, 150); }).observe($("stage-wrap"));
+setPanel(panel);
+setView(view);
+// opened without the key (an old bookmark, the bare address): say where to get the link, and don't keep retrying
+let locked = false;
+function noKey() {
+  locked = true; overlayKey = "nokey"; overlay.replaceChildren();
+  const box = h("div", {}, null, overlay);
+  h("h2", {}, "This page needs the monitor's link", box);
+  h("p", {}, "Open the link that /agent-monitor:open prints (it ends in ?k=…). The key keeps other programs on this computer from reading your sessions.", box);
+  $("ticker").textContent = "No access key in this address.";
+}
+if (EXPORT) {
+  for (const id of ["export", "reimport", "alerts"]) $(id).hidden = true;
+  document.querySelector(".sub").textContent = EXPORT.note || `An exported replay, saved ${new Date(EXPORT.made).toLocaleString()}. Press Play, or click a prompt to see only that prompt and the agents it set off.`;
+}
+loadAll().then(() => { if (!locked && !EXPORT) connect(); });
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "agent-monitor",
+  "version": "0.2.1",
+  "description": "Watch your Claude Code agents live and in replay: every session, prompt, subagent and workflow agent on a map and a timeline, with start and finish times and token counts. Local only, no network calls, no dependencies.",
+  "author": { "name": "Omer Parvez" },
+  "license": "MIT",
+  "keywords": ["agents", "subagents", "monitor", "timeline", "replay", "hooks"]
+}

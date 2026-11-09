@@ -1,0 +1,14 @@
+{
+  "name": "agent-monitor-local",
+  "owner": { "name": "Omer Parvez" },
+  "metadata": { "description": "Agent monitor for Claude Code: watch your agents live and in replay, locally." },
+  "plugins": [
+    {
+      "name": "agent-monitor",
+      "source": "./agent-monitor",
+      "description": "Watch your Claude Code agents live and in replay: sessions, prompts, subagents and workflow agents on a map and a timeline, with times and tokens.",
+      "author": { "name": "Omer Parvez" },
+      "license": "MIT"
+    }
+  ]
+}

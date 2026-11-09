@@ -1,0 +1,16 @@
+{
+  "description": "Agent monitor: logs a one-line summary of each session, prompt, tool call and subagent to ~/.claude/agent-monitor/events.jsonl. Async, never blocks Claude.",
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "PostToolUseFailure": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "PermissionRequest": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "Notification": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "SubagentStart": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }],
+    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hook.js\"", "timeout": 5, "async": true }] }]
+  }
+}
