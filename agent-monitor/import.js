@@ -227,4 +227,7 @@ function selfTest() {
   console.log('self-test ok');
 }
 
-if (process.argv[2] === '--self-test') selfTest(); else main();
+module.exports = { convertSession };   // the session-replay skill turns one transcript into events with it
+
+if (require.main !== module) { /* required as a library: do nothing else */ }
+else if (process.argv[2] === '--self-test') selfTest(); else main();
